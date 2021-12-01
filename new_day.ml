@@ -1,6 +1,8 @@
-let dune_file_content = {|(executable
+let dune_file_content =
+  {|(executable
  (name part1)
- (libraries aoc))
+ (libraries aoc)
+ (modules Part1))
 |}
 
 let last_day () =
