@@ -1,9 +1,13 @@
 (executable
  (name part1)
- (libraries aoc)
+ (libraries aoc board)
  (modules Part1))
 
 (executable
  (name part2)
- (libraries aoc)
+ (libraries aoc board)
  (modules Part2))
+
+(library
+ (name board)
+ (modules Board))
