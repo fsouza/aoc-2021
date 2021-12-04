@@ -2,3 +2,8 @@
  (name part1)
  (libraries aoc)
  (modules Part1))
+
+(executable
+ (name part2)
+ (libraries aoc)
+ (modules Part2))
