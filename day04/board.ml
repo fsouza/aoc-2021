@@ -30,15 +30,13 @@ let check board =
     board.(idx) |> Array.for_all ~f:(fun (_, marked) -> marked)
   in
   let check_col idx =
-    let all_marked = ref true in
-    for i = 0 to 4 do
-      let _, marked = board.(i).(idx) in
-      if not marked then all_marked := false
-    done;
-    !all_marked
+    List.init ~len:(Array.length board) ~f:Fun.id
+    |> List.for_all ~f:(fun i ->
+           let _, marked = board.(i).(idx) in
+           marked)
   in
   try
-    for i = 0 to 4 do
+    for i = 0 to Array.length board - 1 do
       if check_row i then raise_notrace Break
       else if check_col i then raise_notrace Break
     done;
@@ -47,14 +45,13 @@ let check board =
 
 let mark number board =
   try
-    for i = 0 to 4 do
-      for j = 0 to 4 do
-        let n, _ = board.(i).(j) in
-        if n = number then (
-          board.(i).(j) <- (n, true);
-          raise_notrace Break)
-      done
-    done;
+    Array.iteri
+      ~f:(fun i ->
+        Array.iteri ~f:(fun j (n, _) ->
+            if n = number then (
+              board.(i).(j) <- (n, true);
+              raise_notrace Break)))
+      board;
     (board, false)
   with Break -> (board, check board)
 
