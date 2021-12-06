@@ -2,8 +2,6 @@ open StdLabels
 open MoreLabels
 module IntMap = Map.Make (Int)
 
-let proc_day clock = if clock = 0 then [ 8; 6 ] else [ clock - 1 ]
-
 let add_to_map ?(value = 1) map fish =
   let curr = IntMap.find_opt fish map |> Option.value ~default:0 in
   IntMap.add ~key:fish ~data:(curr + value) map
