@@ -3,12 +3,14 @@ open StdLabels
 let sum_ap n = n * (n + 1) / 2
 
 let solve calc_fn crabs =
-  let rec align_to fuel target = function
-    | [] -> fuel
-    | hd :: tl -> align_to (fuel + calc_fn (Int.abs (hd - target))) target tl
-  in
   crabs
-  |> List.map ~f:(fun crab -> align_to 0 crab crabs)
+  |> List.map ~f:(fun target ->
+         List.fold_left ~init:0
+           ~f:(fun fuel_acc crab ->
+             let required_steps = Int.abs (crab - target) in
+             let required_fuel = calc_fn required_steps in
+             required_fuel + fuel_acc)
+           crabs)
   |> List.fold_left ~init:max_int ~f:min
 
 let () =
