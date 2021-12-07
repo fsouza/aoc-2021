@@ -5,12 +5,11 @@ let sum_ap n = n * (n + 1) / 2
 let solve calc_fn crabs =
   crabs
   |> List.map ~f:(fun target ->
-         List.fold_left ~init:0
-           ~f:(fun fuel_acc crab ->
-             let required_steps = Int.abs (crab - target) in
-             let required_fuel = calc_fn required_steps in
-             required_fuel + fuel_acc)
-           crabs)
+         crabs
+         |> List.fold_left ~init:0 ~f:(fun fuel_acc crab ->
+                let required_steps = Int.abs (crab - target) in
+                let required_fuel = calc_fn required_steps in
+                required_fuel + fuel_acc))
   |> List.fold_left ~init:max_int ~f:min
 
 let () =
