@@ -1,6 +1,5 @@
 open StdLabels
 open MoreLabels
-module CharMap = Map.Make (Char)
 module CharSet = Set.Make (Char)
 module IntMap = Map.Make (Int)
 
