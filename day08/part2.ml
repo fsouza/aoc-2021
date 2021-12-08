@@ -15,11 +15,6 @@ let all_chars = CharSet.of_list [ 'a'; 'b'; 'c'; 'd'; 'e'; 'f'; 'g' ]
 
 let charset_of_string str = str |> String.to_seq |> CharSet.of_seq
 
-let all_possibilities =
-  all_chars
-  |> CharSet.fold ~init:CharMap.empty ~f:(fun ch ->
-         CharMap.add ~key:ch ~data:all_chars)
-
 (* Note: I derived this with a piece of paper. Perhaps I could automate it?
    Have an algorithm figure out the rules? Use something other than sets? idk
    Will investigate :)
