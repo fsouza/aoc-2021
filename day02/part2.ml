@@ -1,7 +1,6 @@
 open StdLabels
 
 type instruction = Forward of int | Down of int | Up of int
-
 type state = { pos : int * int; aim : int }
 
 let parse line =

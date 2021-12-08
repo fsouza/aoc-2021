@@ -8,7 +8,6 @@ let parse line =
   | _ -> None
 
 let execute (horizontal, depth) (x, y) = (horizontal + x, depth + y)
-
 let mult (horizontal, depth) = horizontal * depth
 
 let () =

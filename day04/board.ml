@@ -1,9 +1,7 @@
 open StdLabels
 
 type cell = int * bool
-
 type row = cell array
-
 type t = row array
 
 let parse_row str =

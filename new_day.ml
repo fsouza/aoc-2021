@@ -27,9 +27,7 @@ let write_file folder name contents =
   close_out file
 
 let write_dune_file folder = write_file folder "dune" dune_file_content
-
 let write_part1_module folder = write_file folder "part1.ml" ""
-
 let run_fmt () = Sys.command "dune build @fmt --auto-promote" |> ignore
 
 let () =
