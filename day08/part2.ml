@@ -20,12 +20,16 @@ let all_possibilities =
   |> CharSet.fold ~init:CharMap.empty ~f:(fun ch ->
          CharMap.add ~key:ch ~data:all_chars)
 
-(* 7 - 1 = a
+(* Note: I derived this with a piece of paper. Perhaps I could automate it?
+   Have an algorithm figure out the rules? Use something other than sets? idk
+   Will investigate :)
+
+   7 - 1 = a
    0 & 1 & 6 & 9 = f
    1 = c | f, I know f, so now I know c
-   2 & 3 & 5 = a | d | g, I know a, so I know d
+   2 & 3 & 5 & 4 = d
+   2 & 3 & 5 - a - d = g
    4 - 1 = b | d, I know d, so I know b
-   0 & 6 & 9 = a | b | f | g, I know a, b and f, so now I know g
    if I know a, b, c, d, f and g, I know e :)
 *)
 
@@ -44,12 +48,7 @@ let regroup_by_length =
       let curr = IntMap.find_opt length map |> Option.value ~default:[] in
       IntMap.add ~key:length ~data:(charset_of_string pattern :: curr) map)
 
-let print_mapping =
-  Hashtbl.iter ~f:(fun ~key ~data -> Printf.printf "%c: %c\n" key data)
-
 let analyze patterns =
-  Printf.printf "analyzing %s\n"
-    (List.fold_left ~init:"" ~f:(fun acc p -> acc ^ " " ^ p) patterns);
   let result = Hashtbl.create 7 in
   let grouped = regroup_by_length patterns in
   let seven = grouped |> IntMap.find 3 |> List.hd in
@@ -61,13 +60,13 @@ let analyze patterns =
   in
   let f = CharSet.inter abfg one in
   let c = CharSet.diff one f in
-  let da =
+  let adg =
     grouped |> IntMap.find 5 |> List.fold_left ~init:all_chars ~f:CharSet.inter
   in
-  let d = CharSet.diff da a in
+  let d = CharSet.inter adg four in
+  let g = a |> CharSet.union d |> CharSet.diff adg in
   let bd = CharSet.diff four one in
   let b = CharSet.diff bd d in
-  let g = a |> CharSet.union b |> CharSet.union f |> CharSet.diff abfg in
   let e =
     a
     |> CharSet.union b
@@ -78,19 +77,12 @@ let analyze patterns =
     |> CharSet.diff all_chars
   in
   Hashtbl.add ~key:(CharSet.min_elt a) ~data:'a' result;
-  print_endline "added a";
   Hashtbl.add ~key:(CharSet.min_elt b) ~data:'b' result;
-  print_endline "added b";
   Hashtbl.add ~key:(CharSet.min_elt c) ~data:'c' result;
-  print_endline "added c";
   Hashtbl.add ~key:(CharSet.min_elt d) ~data:'d' result;
-  print_endline "added d";
   Hashtbl.add ~key:(CharSet.min_elt e) ~data:'e' result;
-  print_endline "added e";
   Hashtbl.add ~key:(CharSet.min_elt f) ~data:'f' result;
-  print_endline "added f";
   Hashtbl.add ~key:(CharSet.min_elt g) ~data:'g' result;
-  print_endline "added g";
   result
 
 let get_digit = function
@@ -108,7 +100,6 @@ let get_digit = function
 
 let resolve (patterns, output) =
   let mapping = analyze patterns in
-  print_mapping mapping;
   output
   |> List.to_seq
   |> Seq.map (fun str ->
