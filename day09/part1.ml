@@ -31,19 +31,13 @@ let find_lowest_points heightmap =
              | None -> acc
              | Some v -> v :: acc)
     in
-    PosMap.find_opt (row, col) heightmap
-    |> Option.map (fun v -> (v, List.for_all ~f:(( < ) v) neighbors))
+    let v = PosMap.find (row, col) heightmap in
+    List.for_all ~f:(( < ) v) neighbors
   in
-  let rec find_lowest_points' acc row col =
-    match is_lowest_point row col with
-    | None -> (
-        match PosMap.find_opt (row + 1, 0) heightmap with
-        | None -> acc
-        | Some _ -> find_lowest_points' acc (row + 1) 0)
-    | Some (v, true) -> find_lowest_points' (v :: acc) row (col + 1)
-    | Some (_, false) -> find_lowest_points' acc row (col + 1)
-  in
-  find_lowest_points' [] 0 0
+  PosMap.fold ~init:[]
+    ~f:(fun ~key:(row, col) ~data acc ->
+      if is_lowest_point row col then data :: acc else acc)
+    heightmap
 
 let () =
   Aoc.zip Aoc.nat Aoc.stdin
