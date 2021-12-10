@@ -1,3 +1,5 @@
+open StdLabels
+
 let matching = function
   | ')' -> '('
   | ']' -> '['
@@ -6,19 +8,21 @@ let matching = function
   | ch -> ch |> Printf.sprintf "don't know what to do with '%c'" |> invalid_arg
 
 let eval input =
-  let rec eval' stack idx =
-    if idx = String.length input then Ok stack
-    else
-      match input.[idx] with
-      | ('(' | '[' | '{' | '<') as ch -> eval' (ch :: stack) (idx + 1)
-      | (')' | ']' | '}' | '>') as ch -> (
-          let opening = matching ch in
-          match stack with
-          | hd :: tl when Char.equal hd opening -> eval' tl (idx + 1)
-          | _ -> Error ch)
-      | _ -> eval' stack (idx + 1)
+  let open Seq in
+  let rec eval' stack seq =
+    match seq () with
+    | Nil -> Ok stack
+    | Cons (ch, rest) -> (
+        match ch with
+        | ('(' | '[' | '{' | '<') as ch -> eval' (ch :: stack) rest
+        | (')' | ']' | '}' | '>') as ch -> (
+            let opening = matching ch in
+            match stack with
+            | hd :: tl when Char.equal hd opening -> eval' tl rest
+            | _ -> Error ch)
+        | _ -> eval' stack rest)
   in
-  eval' [] 0
+  eval' [] (String.to_seq input)
 
 let points = function
   | ')' -> 3
