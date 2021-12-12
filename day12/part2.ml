@@ -28,10 +28,8 @@ let add_visit cave visits =
   let curr = StringMap.find_opt cave visits |> Option.value ~default:0 in
   StringMap.add ~key:cave ~data:(curr + 1) visits
 
-let print_path p = p |> List.rev |> String.concat ~sep:" -> " |> print_endline
-
 let count_paths target map =
-  let rec path_from' visits coming_from origin =
+  let rec path_from' visits origin =
     if origin = target then 1
     else
       StringMap.find origin map
@@ -41,9 +39,9 @@ let count_paths target map =
                if is_big_cave connection then visits
                else add_visit connection visits
              in
-             acc + path_from' visits (connection :: coming_from) connection)
+             acc + path_from' visits connection)
   in
-  path_from' StringMap.empty [ "start" ] "start"
+  path_from' StringMap.empty "start"
 
 let () =
   Aoc.stdin

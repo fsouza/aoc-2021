@@ -16,10 +16,9 @@ let add_to_map map (orig, dest) =
   |> StringMap.add ~key:dest ~data:(orig :: curr_dest)
 
 let is_big_cave cave = String.uppercase_ascii cave = cave
-let print_path p = p |> List.rev |> String.concat ~sep:" -> " |> print_endline
 
 let count_paths target map =
-  let rec path_from' visited coming_from origin =
+  let rec path_from' visited origin =
     if origin = target then 1
     else
       StringMap.find origin map
@@ -29,9 +28,9 @@ let count_paths target map =
                if is_big_cave connection then visited
                else StringSet.add connection visited
              in
-             acc + path_from' visited (connection :: coming_from) connection)
+             acc + path_from' visited connection)
   in
-  path_from' (StringSet.singleton "start") [ "start" ] "start"
+  path_from' (StringSet.singleton "start") "start"
 
 let () =
   Aoc.stdin
