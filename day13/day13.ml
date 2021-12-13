@@ -89,17 +89,23 @@ let do_one_fold (grid, folds) =
 
 let execute_folds (grid, folds) = List.fold_left ~init:grid ~f:fold folds
 
+let part1 (grid, folds) =
+  do_one_fold (grid, folds)
+  |> (fun { dots; _ } -> DotSet.cardinal dots)
+  |> Printf.printf "Part 1: %d\n"
+
+let part2 (grid, folds) =
+  execute_folds (grid, folds)
+  |> fun grid ->
+  print_newline ();
+  print_endline "Part 2:";
+  print_grid grid
+
 let () =
   let grid, folds =
     Aoc.stdin
     |> Seq.fold_left parse_into_state (empty_grid, [])
     |> fun (grid, folds) -> (grid, List.rev folds)
   in
-  do_one_fold (grid, folds)
-  |> (fun { dots; _ } -> DotSet.cardinal dots)
-  |> Printf.printf "Part 1: %d\n";
-  execute_folds (grid, folds)
-  |> fun grid ->
-  print_newline ();
-  print_endline "Part 2:";
-  print_grid grid
+  part1 (grid, folds);
+  part2 (grid, folds)
