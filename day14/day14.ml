@@ -104,10 +104,6 @@ let most_common_least_common { char_map; _ } =
          else if data < least_common_amount then
            (most_common, most_common_amount, key, data)
          else acc)
-  |> fun (most_common, most_common_amount, least_common, least_common_amount) ->
-  Printf.printf "Most common: (%c, %d)\n" most_common most_common_amount;
-  Printf.printf "Least common: (%c, %d)\n" least_common least_common_amount;
-  (most_common, most_common_amount, least_common, least_common_amount)
   |> fun (_, most_common_amount, _, least_common_amount) ->
   (most_common_amount, least_common_amount)
 
