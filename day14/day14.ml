@@ -15,8 +15,10 @@ module PairMap = Map.Make (struct
 end)
 
 let add_pair_to_map ?(times = 1) ?(last = false) pair map =
-  let _, curr = PairMap.find_opt pair map |> Option.value ~default:(false, 0) in
-  PairMap.add ~key:pair ~data:(last, curr + times) map
+  let curr_last, curr =
+    PairMap.find_opt pair map |> Option.value ~default:(false, 0)
+  in
+  PairMap.add ~key:pair ~data:(curr_last || last, curr + times) map
 
 type state = { pair_map : (bool * int) PairMap.t; char_map : int CharMap.t }
 
@@ -78,7 +80,7 @@ let apply_rules rules state =
             |> add_char_count_to_map ~times inserted_char
           in
           let char_map =
-            if last then add_char_count_to_map ~times second_char char_map
+            if last then add_char_count_to_map second_char char_map
             else char_map
           in
           { pair_map; char_map })
@@ -102,14 +104,17 @@ let most_common_least_common { char_map; _ } =
          else if data < least_common_amount then
            (most_common, most_common_amount, key, data)
          else acc)
+  |> fun (most_common, most_common_amount, least_common, least_common_amount) ->
+  Printf.printf "Most common: (%c, %d)\n" most_common most_common_amount;
+  Printf.printf "Least common: (%c, %d)\n" least_common least_common_amount;
+  (most_common, most_common_amount, least_common, least_common_amount)
   |> fun (_, most_common_amount, _, least_common_amount) ->
   (most_common_amount, least_common_amount)
 
 let get_answer steps rules state =
-  (* HACK: there's an off-by-one error in the logic, so I add 1 here LOL *)
   run steps rules state
   |> most_common_least_common
-  |> fun (most_common, least_common) -> most_common - least_common |> ( + ) 1
+  |> fun (most_common, least_common) -> most_common - least_common
 
 let part1 = get_answer 10
 let part2 = get_answer 40
