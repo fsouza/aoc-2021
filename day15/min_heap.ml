@@ -22,6 +22,12 @@ module Make (Ord : OrderedType) = struct
 
   type key = Ord.t
 
+  (* Note: this is a bad type definition. The interface gives the impression of
+     immutability, but `t` includes an array, which is mutable.
+
+     A production grade Heap would either embrace mutation and make it clear in
+     the interface or use some persistent data structure to store the data.
+     Implementing a heap with an array is easier though, so I was lazy :D *)
   type t = {
     capacity : int;
     length : int;
