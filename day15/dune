@@ -1,9 +1,4 @@
 (executable
- (name part1)
+ (name day15)
  (libraries aoc)
- (modules Part1))
-
-(executable
- (name part2)
- (libraries aoc)
- (modules Part2))
+ (modules Day15))
