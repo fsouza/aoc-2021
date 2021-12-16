@@ -100,17 +100,6 @@ and parse_operator_packet_count ~pos data =
   in
   parse_operator_packet_count' ~pos []
 
-let parse_packets input =
-  let open Seq in
-  let eof = String.length input in
-  let rec parse_packets' ~pos () =
-    if pos = eof then Nil
-    else
-      let packet, pos = parse_packet ~pos input in
-      Cons (packet, parse_packets' ~pos)
-  in
-  parse_packets' ~pos:0
-
 let rec sum_version { version; packet_type; _ } =
   match packet_type with
   | Literal _ -> version
@@ -119,9 +108,29 @@ let rec sum_version { version; packet_type; _ } =
         ~f:(fun acc packet -> acc + sum_version packet)
         packets
 
+let rec packet_value { packet_type; _ } =
+  match packet_type with
+  | Literal v -> v
+  | Operator (0, packets) -> fold_packets ~init:0 ~f:( + ) packets
+  | Operator (1, packets) -> fold_packets ~init:1 ~f:( * ) packets
+  | Operator (2, packets) -> fold_packets ~init:max_int ~f:min packets
+  | Operator (3, packets) -> fold_packets ~init:min_int ~f:max packets
+  | Operator (5, [ packet1; packet2 ]) ->
+      if packet_value packet1 > packet_value packet2 then 1 else 0
+  | Operator (6, [ packet1; packet2 ]) ->
+      if packet_value packet1 < packet_value packet2 then 1 else 0
+  | Operator (7, [ packet1; packet2 ]) ->
+      if packet_value packet1 = packet_value packet2 then 1 else 0
+  | _ -> 0
+
+and fold_packets ~init ~f =
+  List.fold_left ~init ~f:(fun acc packet -> f acc (packet_value packet))
+
+let parse_packet data =
+  let packet, _ = parse_packet ~pos:0 data in
+  packet
+
 let () =
-  let packets = read_line () |> hex_to_bin |> parse_packets in
-  packets
-  |> Seq.map sum_version
-  |> Seq.fold_left ( + ) 0
-  |> Printf.printf "Part 1: %d\n"
+  let packet = read_line () |> hex_to_bin |> parse_packet in
+  Printf.printf "Part 1: %d\n" @@ sum_version packet;
+  Printf.printf "Part 2: %d\n" @@ packet_value packet
