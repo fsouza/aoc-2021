@@ -40,10 +40,6 @@ let parse_int ~pos ~len data =
   let value, pos = parse_raw ~pos ~len data in
   (int_of_bin_string value, pos)
 
-let calc_padding length =
-  let x = length / 4 in
-  if x * 4 = length then 0 else ((x + 1) * 4) - length
-
 let parse_literal ~pos data =
   let rec parse_literal' ~pos acc =
     let last_group_flag, pos = parse_int ~pos ~len:1 data in
@@ -54,18 +50,13 @@ let parse_literal ~pos data =
   in
   parse_literal' ~pos ""
 
-let rec parse_packet ?(padding = true) ~pos data =
-  let starting_pos = pos in
+let rec parse_packet ~pos data =
   let version, pos = parse_int ~pos ~len:3 data in
   let type_id, pos = parse_int ~pos ~len:3 data in
   let remainder_parser =
     if type_id = 4 then parse_literal else parse_operator type_id
   in
   let packet_type, pos = remainder_parser ~pos data in
-  let length = pos - starting_pos in
-  let _, pos =
-    if padding then parse_raw ~pos ~len:(calc_padding length) data else ("", pos)
-  in
   ({ version; packet_type }, pos)
 
 and parse_operator ~pos type_id data =
@@ -82,7 +73,7 @@ and parse_operator_bit_len ~pos data =
   let rec parse_operator_bit_len' ~pos acc =
     if pos = target_pos then (List.rev acc, pos)
     else
-      let packet, pos = parse_packet ~padding:false ~pos data in
+      let packet, pos = parse_packet ~pos data in
       parse_operator_bit_len' ~pos (packet :: acc)
   in
   parse_operator_bit_len' ~pos []
@@ -92,7 +83,7 @@ and parse_operator_packet_count ~pos data =
   let rec parse_operator_packet_count' ~pos acc =
     if List.length acc = packet_count then (List.rev acc, pos)
     else
-      let packet, pos = parse_packet ~padding:false ~pos data in
+      let packet, pos = parse_packet ~pos data in
       parse_operator_packet_count' ~pos (packet :: acc)
   in
   parse_operator_packet_count' ~pos []
