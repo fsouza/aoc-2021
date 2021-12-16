@@ -34,7 +34,7 @@ let int_of_bin_string str =
          (acc lsl 1) lor d)
        0
 
-type packet_type = Literal of int | Operator of packet list
+type packet_type = Literal of int | Operator of int * packet list
 and packet = { version : int; packet_type : packet_type }
 
 let parse_raw ~pos ~len data = (String.sub ~pos ~len data, pos + len)
@@ -62,7 +62,7 @@ let rec parse_packet ?(padding = true) ~pos data =
   let version, pos = parse_int ~pos ~len:3 data in
   let type_id, pos = parse_int ~pos ~len:3 data in
   let remainder_parser =
-    if type_id = 4 then parse_literal else parse_operator
+    if type_id = 4 then parse_literal else parse_operator type_id
   in
   let packet_type, pos = remainder_parser ~pos data in
   let length = pos - starting_pos in
@@ -71,16 +71,19 @@ let rec parse_packet ?(padding = true) ~pos data =
   in
   ({ version; packet_type }, pos)
 
-and parse_operator ~pos data =
+and parse_operator ~pos type_id data =
   let length_type_id, pos = parse_int ~pos ~len:1 data in
-  if length_type_id = 0 then parse_operator_bit_len ~pos data
-  else parse_operator_packet_count ~pos data
+  let packets, pos =
+    if length_type_id = 0 then parse_operator_bit_len ~pos data
+    else parse_operator_packet_count ~pos data
+  in
+  (Operator (type_id, packets), pos)
 
 and parse_operator_bit_len ~pos data =
   let bit_len, pos = parse_int ~pos ~len:15 data in
   let target_pos = pos + bit_len in
   let rec parse_operator_bit_len' ~pos acc =
-    if pos = target_pos then (Operator (List.rev acc), pos)
+    if pos = target_pos then (List.rev acc, pos)
     else
       let packet, pos = parse_packet ~padding:false ~pos data in
       parse_operator_bit_len' ~pos (packet :: acc)
@@ -90,7 +93,7 @@ and parse_operator_bit_len ~pos data =
 and parse_operator_packet_count ~pos data =
   let packet_count, pos = parse_int ~pos ~len:11 data in
   let rec parse_operator_packet_count' ~pos acc =
-    if List.length acc = packet_count then (Operator (List.rev acc), pos)
+    if List.length acc = packet_count then (List.rev acc, pos)
     else
       let packet, pos = parse_packet ~padding:false ~pos data in
       parse_operator_packet_count' ~pos (packet :: acc)
@@ -111,7 +114,7 @@ let parse_packets input =
 let rec sum_version { version; packet_type; _ } =
   match packet_type with
   | Literal _ -> version
-  | Operator packets ->
+  | Operator (_, packets) ->
       List.fold_left ~init:version
         ~f:(fun acc packet -> acc + sum_version packet)
         packets
@@ -121,4 +124,4 @@ let () =
   packets
   |> Seq.map sum_version
   |> Seq.fold_left ( + ) 0
-  |> Printf.printf "%d\n"
+  |> Printf.printf "Part 1: %d\n"
