@@ -116,9 +116,13 @@ module Make (Ord : OrderedType) = struct
     data.(length) <- Some (key, priority);
     { heap with data; length = length + 1 } |> swin length
 
+  let trim ({ length; key_map; data; _ } as heap) =
+    let length = length - 1 in
+    let key = force_read_key data length in
+    { heap with length; key_map = OrdMap.remove key key_map }
+
   let remove ~pos ({ length; _ } as heap) =
-    let heap = swap pos (length - 1) heap in
-    { heap with length = length - 1 } |> fix pos
+    heap |> swap pos (length - 1) |> trim |> fix pos
 
   let upsert ~key ~priority ({ key_map; _ } as heap) =
     match OrdMap.find_opt key key_map with
@@ -129,6 +133,5 @@ module Make (Ord : OrderedType) = struct
     if length = 0 then None
     else
       let v = force_read_key data 0 in
-      let heap = swap 0 (length - 1) heap in
-      Some (v, { heap with length = length - 1 } |> sink 0)
+      Some (v, remove ~pos:0 heap)
 end
