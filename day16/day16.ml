@@ -27,12 +27,9 @@ let hex_to_bin str =
 
 let int_of_bin_string str =
   str
-  |> String.to_seq
-  |> Seq.fold_left
-       (fun acc ch ->
+  |> String.fold_left ~init:0 ~f:(fun acc ch ->
          let d = if ch = '0' then 0 else 1 in
          (acc lsl 1) lor d)
-       0
 
 type packet_type = Literal of int | Operator of int * packet list
 and packet = { version : int; packet_type : packet_type }
