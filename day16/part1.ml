@@ -1,3 +1,5 @@
+open StdLabels
+
 let hex_digit_to_bin = function
   | '0' -> Some "0000"
   | '1' -> Some "0001"
@@ -24,7 +26,99 @@ let hex_to_bin str =
   |> Seq.fold_left ( ^ ) ""
 
 let int_of_bin_string str =
-  let length = String.length str in
-  str |> String.to_seqi
+  str
+  |> String.to_seq
+  |> Seq.fold_left
+       (fun acc ch ->
+         let d = if ch = '0' then 0 else 1 in
+         (acc lsl 1) lor d)
+       0
 
-type packet = { id : int }
+type packet_type = Literal of int | Operator of packet list
+and packet = { version : int; packet_type : packet_type }
+
+let parse_raw ~pos ~len data = (String.sub ~pos ~len data, pos + len)
+
+let parse_int ~pos ~len data =
+  let value, pos = parse_raw ~pos ~len data in
+  (int_of_bin_string value, pos)
+
+let calc_padding length =
+  let x = length / 4 in
+  if x * 4 = length then 0 else ((x + 1) * 4) - length
+
+let parse_literal ~pos data =
+  let rec parse_literal' ~pos acc =
+    let last_group_flag, pos = parse_int ~pos ~len:1 data in
+    let digits, pos = parse_raw ~pos ~len:4 data in
+    let acc = acc ^ digits in
+    if last_group_flag = 0 then (Literal (int_of_bin_string acc), pos)
+    else parse_literal' ~pos acc
+  in
+  parse_literal' ~pos ""
+
+let rec parse_packet ?(padding = true) ~pos data =
+  let starting_pos = pos in
+  let version, pos = parse_int ~pos ~len:3 data in
+  let type_id, pos = parse_int ~pos ~len:3 data in
+  let remainder_parser =
+    if type_id = 4 then parse_literal else parse_operator
+  in
+  let packet_type, pos = remainder_parser ~pos data in
+  let length = pos - starting_pos in
+  let _, pos =
+    if padding then parse_raw ~pos ~len:(calc_padding length) data else ("", pos)
+  in
+  ({ version; packet_type }, pos)
+
+and parse_operator ~pos data =
+  let length_type_id, pos = parse_int ~pos ~len:1 data in
+  if length_type_id = 0 then parse_operator_bit_len ~pos data
+  else parse_operator_packet_count ~pos data
+
+and parse_operator_bit_len ~pos data =
+  let bit_len, pos = parse_int ~pos ~len:15 data in
+  let target_pos = pos + bit_len in
+  let rec parse_operator_bit_len' ~pos acc =
+    if pos = target_pos then (Operator (List.rev acc), pos)
+    else
+      let packet, pos = parse_packet ~padding:false ~pos data in
+      parse_operator_bit_len' ~pos (packet :: acc)
+  in
+  parse_operator_bit_len' ~pos []
+
+and parse_operator_packet_count ~pos data =
+  let packet_count, pos = parse_int ~pos ~len:11 data in
+  let rec parse_operator_packet_count' ~pos acc =
+    if List.length acc = packet_count then (Operator (List.rev acc), pos)
+    else
+      let packet, pos = parse_packet ~padding:false ~pos data in
+      parse_operator_packet_count' ~pos (packet :: acc)
+  in
+  parse_operator_packet_count' ~pos []
+
+let parse_packets input =
+  let open Seq in
+  let eof = String.length input in
+  let rec parse_packets' ~pos () =
+    if pos = eof then Nil
+    else
+      let packet, pos = parse_packet ~pos input in
+      Cons (packet, parse_packets' ~pos)
+  in
+  parse_packets' ~pos:0
+
+let rec sum_version { version; packet_type; _ } =
+  match packet_type with
+  | Literal _ -> version
+  | Operator packets ->
+      List.fold_left ~init:version
+        ~f:(fun acc packet -> acc + sum_version packet)
+        packets
+
+let () =
+  let packets = read_line () |> hex_to_bin |> parse_packets in
+  packets
+  |> Seq.map sum_version
+  |> Seq.fold_left ( + ) 0
+  |> Printf.printf "%d\n"
