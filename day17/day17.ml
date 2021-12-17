@@ -54,7 +54,8 @@ let step { pos = x, y; velocity = x_velocity, y_velocity; high_y } =
      There's a range for x_velocity and y_velocity, so I can loop inside that
      range and try all possibilities, then pick whichever has the highest y
      position (assuming y_velocity starts positive, the high y position is
-     reached at y_velocity = 0).
+     reached at y_velocity = 0). For part 2, I simply count the number of items
+     that land in the target_area.
 
      Given that the target area is defined as {x=(x_low, x_high); y=(y_low,
      y_high)}, here's my thought process on such ranges.
