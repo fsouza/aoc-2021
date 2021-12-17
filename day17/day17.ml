@@ -126,9 +126,7 @@ let part1 probes =
   |> Option.iter (Printf.printf "Part 1: %d\n")
 
 let part2 probes =
-  probes
-  |> Option.map (List.fold_left ~init:0 ~f:(fun acc _ -> acc + 1))
-  |> Option.iter (Printf.printf "Part 2: %d\n")
+  probes |> Option.map List.length |> Option.iter (Printf.printf "Part 2: %d\n")
 
 let () =
   let all_probes = read_line () |> parse_target_area |> Option.map run in
