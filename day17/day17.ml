@@ -68,8 +68,9 @@ let step { pos = x, y; velocity = x_velocity, y_velocity; high_y } =
        past it in the very first step.
 
      Y velocity:
-       - lower bound: 1 (assuming that the reaching the highest y requires going up?)
-        TODO: is there a higher/better lower bound?
+       - lower bound: for part 1, it's 1 (we want highest y, we must go up).
+         For part 2, since we want all possibilities, I decided to try -(abs
+         y_low) and that worked.
        - upper bound: (abs y_low)? 🤔 Not sure, need something to try lol *)
 
 let string_of_probe { pos = x, y; velocity = vel_x, vel_y; _ } =
@@ -77,10 +78,10 @@ let string_of_probe { pos = x, y; velocity = vel_x, vel_y; _ } =
 
 let rec launch target_area ({ velocity = x_vel, _; _ } as probe) =
   match check_area probe target_area with
-  | `Before_x when x_vel = 0 -> min_int
+  | `Before_x when x_vel = 0 -> None
   | `Before_x | `Before_y -> launch target_area (step probe)
-  | `After -> min_int
-  | `Inside -> probe.high_y
+  | `After -> None
+  | `Inside -> Some probe
 
 let calc_min_x_vel x_low =
   (* S = n * (a1 + an) / 2
@@ -100,24 +101,36 @@ let calc_min_x_vel x_low =
 let run ({ x = x_low, x_high; y = y_low, _ } as target_area) =
   let min_x_vel = calc_min_x_vel x_low in
   let max_x_vel = x_high in
-  let min_y_vel = 1 in
+  let min_y_vel = y_low in
   let max_y_vel = abs y_low in
   let next y_vel x_vel =
     let x_vel = x_vel + 1 in
     if x_vel > max_x_vel then (y_vel + 1, min_x_vel) else (y_vel, x_vel)
   in
-  let rec run' highest y_vel x_vel =
-    if y_vel > max_y_vel then highest
+  let rec run' acc y_vel x_vel =
+    if y_vel > max_y_vel then acc
     else
       let probe = make_probe x_vel y_vel in
-      let high_y = launch target_area probe in
       let y_vel, x_vel = next y_vel x_vel in
-      run' (max high_y highest) y_vel x_vel
+      match launch target_area probe with
+      | None -> run' acc y_vel x_vel
+      | Some probe -> run' (probe :: acc) y_vel x_vel
   in
-  run' min_int min_y_vel min_x_vel
+  run' [] min_y_vel min_x_vel
+
+let part1 probes =
+  probes
+  |> Option.map
+       (List.fold_left ~init:min_int ~f:(fun acc { high_y; _ } ->
+            max acc high_y))
+  |> Option.iter (Printf.printf "Part 1: %d\n")
+
+let part2 probes =
+  probes
+  |> Option.map (List.fold_left ~init:0 ~f:(fun acc _ -> acc + 1))
+  |> Option.iter (Printf.printf "Part 2: %d\n")
 
 let () =
-  read_line ()
-  |> parse_target_area
-  |> Option.map run
-  |> Option.iter (Printf.printf "%d\n")
+  let all_probes = read_line () |> parse_target_area |> Option.map run in
+  part1 all_probes;
+  part2 all_probes
