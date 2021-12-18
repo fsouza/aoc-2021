@@ -1,4 +1,11 @@
 (executable
  (name day18)
- (libraries aoc)
+ (libraries aoc lib)
  (modules Day18))
+
+(library
+ (name lib)
+ (inline_tests)
+ (modules Lib)
+ (preprocess
+  (pps ppx_expect)))
