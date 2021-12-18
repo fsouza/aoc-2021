@@ -58,7 +58,7 @@ let rec add_literal_from_right v = function
   | Pair (left, right) -> Pair (left, add_literal_from_right v right)
 
 let rec reduce (e1, e2) =
-  let rec reduce_step ?(reduced = false) depth = function
+  let rec step ?(reduced = false) depth = function
     | Literal v when v > 9 ->
         let left = v / 2 in
         let right = float_of_int v /. 2. |> ceil |> int_of_float in
@@ -69,15 +69,9 @@ let rec reduce (e1, e2) =
     | Pair (Literal x, Literal y) when depth = 4 ->
         (Literal 0, Explode (x, y), true)
     | Pair (e1, e2) -> (
-        let left, op_left, changed_left = reduce_step ~reduced (depth + 1) e1 in
-        let reduced =
-          match op_left with
-          | Nop -> reduced || false
-          | Explode _ -> true
-        in
-        let right, op_right, changed_right =
-          reduce_step ~reduced (depth + 1) e2
-        in
+        let left, op_left, changed_left = step ~reduced (depth + 1) e1 in
+        let reduced = reduced || changed_left in
+        let right, op_right, changed_right = step ~reduced (depth + 1) e2 in
         let changed = changed_left || changed_right in
         match (op_left, op_right) with
         | Nop, Nop | Explode (0, 0), Nop | Nop, Explode (0, 0) ->
@@ -92,23 +86,27 @@ let rec reduce (e1, e2) =
               changed )
         | _ -> failwith "state violation: two actions in a single reduction")
   in
-  match reduce_step 0 (Pair (e1, e2)) with
+  match step 0 (Pair (e1, e2)) with
   | (Literal _ as e), _, _ -> e
   | Pair (e1, e2), _, true -> reduce (e1, e2)
   | e, _, false -> e
 
-let magnitude (e1, e2) =
-  let rec magnitude' = function
-    | Literal v -> v
-    | Pair (e1, e2) -> (3 * magnitude' e1) + (2 * magnitude' e2)
-  in
-  magnitude' (Pair (e1, e2))
+let rec magnitude = function
+  | Literal v -> v
+  | Pair (e1, e2) -> (3 * magnitude e1) + (2 * magnitude e2)
 
-let add pair1 pair2 = Pair (pair1, pair2)
+let add pair1 pair2 = reduce (pair1, pair2)
+
+let sum_pairs = function
+  | [] -> failwith "no identity for pairs"
+  | [ solo ] -> solo |> reduce
+  | first :: tl ->
+      List.fold_left ~init:(Pair first) ~f:(fun acc p -> add acc (Pair p)) tl
 
 let () =
   Aoc.stdin
   |> Seq.map parse
-  |> Seq.map reduce
-  |> Seq.map string_of_elm
-  |> Seq.iter (Printf.printf "%s\n")
+  |> List.of_seq
+  |> sum_pairs
+  |> string_of_elm
+  |> Printf.printf "%s\n"
