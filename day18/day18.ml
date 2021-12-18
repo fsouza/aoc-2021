@@ -57,30 +57,45 @@ let rec add_literal_from_right v = function
   | Literal x -> Literal (x + v)
   | Pair (left, right) -> Pair (left, add_literal_from_right v right)
 
-let reduce (e1, e2) =
-  let rec reduce' ?(exploded = false) depth = function
-    | Literal _ as e -> (e, Nop)
-    | Pair (Literal x, Literal y) when exploded ->
-        (Pair (Literal x, Literal y), Nop)
-    | Pair (Literal x, Literal y) when depth = 4 -> (Literal 0, Explode (x, y))
+let rec reduce (e1, e2) =
+  let rec reduce_step ?(reduced = false) depth = function
+    | Literal v when v > 9 ->
+        let left = v / 2 in
+        let right = float_of_int v /. 2. |> ceil |> int_of_float in
+        (Pair (Literal left, Literal right), Nop, true)
+    | Literal _ as e -> (e, Nop, false)
+    | Pair (Literal x, Literal y) when reduced ->
+        (Pair (Literal x, Literal y), Nop, false)
+    | Pair (Literal x, Literal y) when depth = 4 ->
+        (Literal 0, Explode (x, y), true)
     | Pair (e1, e2) -> (
-        let left, op_left = reduce' ~exploded (depth + 1) e1 in
-        let exploded =
+        let left, op_left, changed_left = reduce_step ~reduced (depth + 1) e1 in
+        let reduced =
           match op_left with
-          | Nop -> exploded || false
+          | Nop -> reduced || false
           | Explode _ -> true
         in
-        let right, op_right = reduce' ~exploded (depth + 1) e2 in
+        let right, op_right, changed_right =
+          reduce_step ~reduced (depth + 1) e2
+        in
+        let changed = changed_left || changed_right in
         match (op_left, op_right) with
         | Nop, Nop | Explode (0, 0), Nop | Nop, Explode (0, 0) ->
-            (Pair (left, right), Nop)
+            (Pair (left, right), Nop, changed)
         | Explode (carry, v), Nop ->
-            (Pair (left, add_literal_from_left v right), Explode (carry, 0))
+            ( Pair (left, add_literal_from_left v right),
+              Explode (carry, 0),
+              changed )
         | Nop, Explode (v, carry) ->
-            (Pair (add_literal_from_right v left, right), Explode (0, carry))
+            ( Pair (add_literal_from_right v left, right),
+              Explode (0, carry),
+              changed )
         | _ -> failwith "state violation: two actions in a single reduction")
   in
-  reduce' 0 (Pair (e1, e2)) |> fst
+  match reduce_step 0 (Pair (e1, e2)) with
+  | (Literal _ as e), _, _ -> e
+  | Pair (e1, e2), _, true -> reduce (e1, e2)
+  | e, _, false -> e
 
 let magnitude (e1, e2) =
   let rec magnitude' = function
