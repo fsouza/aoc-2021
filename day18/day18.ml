@@ -37,6 +37,11 @@ let parse input =
   in
   parse' [] 0 |> get_pair_from_stack_exn
 
+let rec sexp_of_elm = function
+  | Literal v -> Printf.sprintf "(Literal %d)" v
+  | Pair (e1, e2) ->
+      Printf.sprintf "(Pair %s, %s)" (sexp_of_elm e1) (sexp_of_elm e2)
+
 let rec string_of_elm = function
   | Literal v -> Int.to_string v
   | Pair (e1, e2) ->
@@ -53,13 +58,19 @@ let rec add_literal_from_right v = function
   | Pair (left, right) -> Pair (left, add_literal_from_right v right)
 
 let reduce (e1, e2) =
-  let rec reduce' depth = function
+  let rec reduce' ?(exploded = false) depth = function
     | Literal _ as e -> (e, Nop)
-    | Pair (Literal x, Literal y) when depth >= 4 -> (Literal 0, Explode (x, y))
+    | Pair (Literal x, Literal y) when exploded ->
+        (Pair (Literal x, Literal y), Nop)
+    | Pair (Literal x, Literal y) when depth = 4 -> (Literal 0, Explode (x, y))
     | Pair (e1, e2) -> (
-        let left, op_left = reduce' (depth + 1) e1 in
-        let right, op_right = reduce' (depth + 1) e2 in
-        (* Note: can we make the invalid states here impossible to represent? *)
+        let left, op_left = reduce' ~exploded (depth + 1) e1 in
+        let exploded =
+          match op_left with
+          | Nop -> exploded || false
+          | Explode _ -> true
+        in
+        let right, op_right = reduce' ~exploded (depth + 1) e2 in
         match (op_left, op_right) with
         | Nop, Nop | Explode (0, 0), Nop | Nop, Explode (0, 0) ->
             (Pair (left, right), Nop)
@@ -67,14 +78,9 @@ let reduce (e1, e2) =
             (Pair (left, add_literal_from_left v right), Explode (carry, 0))
         | Nop, Explode (v, carry) ->
             (Pair (add_literal_from_right v left, right), Explode (0, carry))
-        | ( Explode (left_carry, left_explosion),
-            Explode (right_explosion, right_carry) ) ->
-            ( Pair
-                ( add_literal_from_right left_explosion left,
-                  add_literal_from_left right_explosion right ),
-              Explode (left_carry, right_carry) ))
+        | _ -> failwith "state violation: two actions in a single reduction")
   in
-  reduce' 1 (Pair (e1, e2)) |> fst
+  reduce' 0 (Pair (e1, e2)) |> fst
 
 let magnitude (e1, e2) =
   let rec magnitude' = function
@@ -83,7 +89,7 @@ let magnitude (e1, e2) =
   in
   magnitude' (Pair (e1, e2))
 
-(* let add pair1 pair2 = Pair (pair1, pair2) |> reduce *)
+let add pair1 pair2 = Pair (pair1, pair2)
 
 let () =
   Aoc.stdin
