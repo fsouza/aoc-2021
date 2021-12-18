@@ -97,16 +97,16 @@ let rec magnitude = function
 
 let add pair1 pair2 = reduce (pair1, pair2)
 
-let sum_pairs = function
-  | [] -> failwith "no identity for pairs"
-  | [ solo ] -> solo |> reduce
-  | first :: tl ->
-      List.fold_left ~init:(Pair first) ~f:(fun acc p -> add acc (Pair p)) tl
+let sum_elements = function
+  | [] -> failwith "can't sum empty list of pairs"
+  | [ solo ] -> solo
+  | first :: tl -> List.fold_left ~init:first ~f:(fun acc p -> add acc p) tl
 
 let () =
   Aoc.stdin
   |> Seq.map parse
+  |> Seq.map reduce
   |> List.of_seq
-  |> sum_pairs
+  |> sum_elements
   |> string_of_elm
   |> Printf.printf "%s\n"
