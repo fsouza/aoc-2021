@@ -117,3 +117,12 @@ let%expect_test "complex reduction" =
   in
   input |> parse |> reduce |> string_of_elm |> print_string;
   [%expect "[[[[4,0],[5,4]],[[7,7],[6,0]]],[[8,[7,7]],[[7,9],[5,0]]]]"]
+
+let%expect_test "chained sum" =
+  [ "[1,1]"; "[2,2]"; "[3,3]"; "[4,4]" ]
+  |> List.map ~f:parse
+  |> List.map ~f:reduce
+  |> sum_elements
+  |> string_of_elm
+  |> print_string;
+  [%expect "[[[[1,1],[2,2]],[3,3]],[4,4]]"]
