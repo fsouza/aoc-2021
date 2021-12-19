@@ -57,7 +57,6 @@ let rec add_literal_from_right v = function
   | Literal x -> Literal (x + v)
   | Pair (left, right) -> Pair (left, add_literal_from_right v right)
 
-(* [[[[0,[4,5]],[0,0]],[[[4,5],[2,6]],[9,5]]],[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]] *)
 let rec reduce (e1, e2) =
   let rec split = function
     | Literal v when v > 9 ->
