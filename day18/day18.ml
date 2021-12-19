@@ -7,8 +7,10 @@ let part1 snailfishes =
   |> Printf.printf "Part 1: %d\n"
 
 let all_pairs el =
+  let s_el = Lib.string_of_elm el in
   let rec all_pairs' acc = function
     | [] -> acc
+    | hd :: tl when Lib.string_of_elm hd = s_el -> all_pairs' acc tl
     | hd :: tl -> all_pairs' ((el, hd) :: (hd, el) :: acc) tl
   in
   all_pairs' []
