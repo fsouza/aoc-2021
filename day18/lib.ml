@@ -57,6 +57,7 @@ let rec add_literal_from_right v = function
   | Literal x -> Literal (x + v)
   | Pair (left, right) -> Pair (left, add_literal_from_right v right)
 
+(* [[[[0,[4,5]],[0,0]],[[[4,5],[2,6]],[9,5]]],[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]] *)
 let rec reduce (e1, e2) =
   let rec step depth = function
     | Literal v when v > 9 ->
@@ -101,6 +102,21 @@ let%expect_test "basic reduction" =
   input |> parse |> reduce |> string_of_elm |> print_string;
   [%expect "[[[[0,9],2],3],4]"]
 
+let%expect_test "carry reduction" =
+  let input = "[[6,[5,[4,[3,2]]]],1]" in
+  input |> parse |> reduce |> string_of_elm |> print_string;
+  [%expect "[[6,[5,[7,0]]],3]"]
+
+let%expect_test "multi-step reduction" =
+  let input = "[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]" in
+  input |> parse |> reduce |> string_of_elm |> print_string;
+  [%expect "[[3,[2,[8,0]]],[9,[5,[7,0]]]]"]
+
+let%expect_test "reduce and split" =
+  let input = "[[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]]" in
+  input |> parse |> reduce |> string_of_elm |> print_string;
+  [%expect "[[[[0,7],4],[[7,8],[6,0]]],[8,1]]"]
+
 let%expect_test "already reduced left" =
   let input = "[[[0,[4,5]],[0,0]],[[[4,5],[2,6]],[9,5]]]" in
   input |> parse |> reduce |> string_of_elm |> print_string;
@@ -126,3 +142,32 @@ let%expect_test "chained sum" =
   |> string_of_elm
   |> print_string;
   [%expect "[[[[1,1],[2,2]],[3,3]],[4,4]]"]
+
+let%expect_test "chained sum with reduction" =
+  [ "[1,1]"; "[2,2]"; "[3,3]"; "[4,4]"; "[5,5]"; "[6,6]" ]
+  |> List.map ~f:parse
+  |> List.map ~f:reduce
+  |> sum_elements
+  |> string_of_elm
+  |> print_string;
+  [%expect "[[[[5,0],[7,4]],[5,5]],[6,6]]"]
+
+let%expect_test "large chained sum with reduction" =
+  [
+    "[[[0,[4,5]],[0,0]],[[[4,5],[2,6]],[9,5]]]";
+    "[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]";
+    "[[2,[[0,8],[3,4]]],[[[6,7],1],[7,[1,6]]]]";
+    "[[[[2,4],7],[6,[0,5]]],[[[6,8],[2,8]],[[2,1],[4,5]]]]";
+    "[7,[5,[[3,8],[1,4]]]]";
+    "[[2,[2,2]],[8,[8,1]]]";
+    "[2,9]";
+    "[1,[[[9,3],9],[[9,0],[0,7]]]]";
+    "[[[5,[7,4]],7],1]";
+    "[[[[4,2],2],6],[8,7]]";
+  ]
+  |> List.map ~f:parse
+  |> List.map ~f:reduce
+  |> sum_elements
+  |> string_of_elm
+  |> print_string;
+  [%expect "[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]"]
