@@ -8,6 +8,16 @@ type stack_el = Stack_literal of char | Int of int | Stack_pair of pair
 let is_digit ch = ch >= '0' && ch <= '9'
 let parse_digit ch = Char.code ch - Char.code '0'
 
+let rec sexp_of_elm = function
+  | Literal v -> Printf.sprintf "(Literal %d)" v
+  | Pair (e1, e2) ->
+      Printf.sprintf "(Pair %s, %s)" (sexp_of_elm e1) (sexp_of_elm e2)
+
+let rec string_of_elm = function
+  | Literal v -> Int.to_string v
+  | Pair (e1, e2) ->
+      Printf.sprintf "[%s,%s]" (string_of_elm e1) (string_of_elm e2)
+
 let make_pair = function
   | Int y :: Int x :: Stack_literal '[' :: tl ->
       Stack_pair (Literal x, Literal y) :: tl
@@ -19,7 +29,7 @@ let make_pair = function
       Stack_pair (Pair p1, Pair p2) :: tl
   | _ -> failwith "malformed expression"
 
-let get_pair_from_stack_exn = function
+let pop_pair = function
   | [ Stack_pair p ] -> p
   | _ ->
       failwith "malformed expression: didn't reduce expression to a single pair"
@@ -35,17 +45,7 @@ let parse input =
       | ']' -> parse' (make_pair stack) (idx + 1)
       | _ -> parse' stack (idx + 1)
   in
-  parse' [] 0 |> get_pair_from_stack_exn
-
-let rec sexp_of_elm = function
-  | Literal v -> Printf.sprintf "(Literal %d)" v
-  | Pair (e1, e2) ->
-      Printf.sprintf "(Pair %s, %s)" (sexp_of_elm e1) (sexp_of_elm e2)
-
-let rec string_of_elm = function
-  | Literal v -> Int.to_string v
-  | Pair (e1, e2) ->
-      Printf.sprintf "[%s,%s]" (string_of_elm e1) (string_of_elm e2)
+  parse' [] 0 |> pop_pair
 
 type reduction = Explode of int * int | Nop
 
@@ -59,32 +59,51 @@ let rec add_literal_from_right v = function
 
 (* [[[[0,[4,5]],[0,0]],[[[4,5],[2,6]],[9,5]]],[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]] *)
 let rec reduce (e1, e2) =
-  let rec step depth = function
+  let rec split = function
     | Literal v when v > 9 ->
         let left = v / 2 in
         let right = float_of_int v /. 2. |> ceil |> int_of_float in
-        (Pair (Literal left, Literal right), Nop, true)
+        (Pair (Literal left, Literal right), true)
+    | Literal _ as e -> (e, false)
+    | Pair (e1, e2) ->
+        let left, splitted = split e1 in
+        if splitted then (Pair (left, e2), true)
+        else
+          let right, splitted = split e2 in
+          (Pair (left, right), splitted)
+  in
+  let rec explode depth = function
     | Literal _ as e -> (e, Nop, false)
-    | Pair (Literal x, Literal y) when depth = 4 ->
+    | Pair (Literal x, Literal y) when depth >= 4 ->
         (Literal 0, Explode (x, y), true)
     | Pair (e1, e2) -> (
-        match step (depth + 1) e1 with
+        match explode (depth + 1) e1 with
         | left, Explode (carry, v), true ->
             (Pair (left, add_literal_from_left v e2), Explode (carry, 0), true)
         | left, Nop, true -> (Pair (left, e2), Nop, true)
-        | left, _, false -> (
-            match step (depth + 1) e2 with
+        | _, _, false -> (
+            match explode (depth + 1) e2 with
             | right, Explode (v, carry), true ->
-                ( Pair (add_literal_from_right v left, right),
+                ( Pair (add_literal_from_right v e1, right),
                   Explode (0, carry),
                   true )
-            | right, Nop, true -> (Pair (left, right), Nop, true)
-            | right, op, false -> (Pair (left, right), op, false)))
+            | right, Nop, true -> (Pair (e1, right), Nop, true)
+            | _, op, false -> (Pair (e1, e2), op, false)))
   in
-  match step 0 (Pair (e1, e2)) with
-  | (Literal _ as e), _, _ -> e
+  match explode 0 (Pair (e1, e2)) with
+  | Literal _, _, true ->
+      failwith
+        "invalid state: can't return a modified literal from the top-level \
+         reduction"
   | Pair (e1, e2), _, true -> reduce (e1, e2)
-  | e, _, false -> e
+  | e, _, false -> (
+      match split e with
+      | Literal _, true ->
+          failwith
+            "invalid state: can't return a modified literal from the top-level \
+             reduction"
+      | Pair (e1, e2), true -> reduce (e1, e2)
+      | _, false -> e)
 
 let rec magnitude = function
   | Literal v -> v
