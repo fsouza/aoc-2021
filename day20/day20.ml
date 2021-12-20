@@ -74,7 +74,7 @@ let square_positions (center_row, center_col) =
 let get_index image pos =
   pos |> square_positions |> Seq.map (get_pixel image) |> int_of_pixels
 
-let enhance algorithm ({ infinite; _ } as image) =
+let enhance_once algorithm ({ infinite; _ } as image) =
   let row_bounds, col_bounds, all_positions = all_positions image in
   let grid =
     all_positions
@@ -113,14 +113,21 @@ let add_to_image image (row_idx, row) =
 
 let count_lit_pixels { grid; _ } = PosSet.cardinal grid
 
+let rec enhance times algorithm image =
+  if times = 0 then image
+  else enhance (times - 1) algorithm (enhance_once algorithm image)
+
+let part1 algorithm image =
+  enhance 2 algorithm image |> count_lit_pixels |> Printf.printf "Part 1: %d\n"
+
+let part2 algorithm image =
+  enhance 50 algorithm image |> count_lit_pixels |> Printf.printf "Part 2: %d\n"
+
 let () =
   let algorithm = read_line () |> String.to_seq |> Array.of_seq in
   read_line () |> ignore;
   let image =
     Aoc.zip Aoc.nat Aoc.stdin |> Seq.fold_left add_to_image initial_image
   in
-  image
-  |> enhance algorithm
-  |> enhance algorithm
-  |> count_lit_pixels
-  |> Printf.printf "%d\n"
+  part1 algorithm image;
+  part2 algorithm image
