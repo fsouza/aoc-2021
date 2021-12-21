@@ -41,7 +41,7 @@ let play =
 
 let quantum_play =
   let rec play' ({ score; pos; id } as player) other_player =
-    let positions = [ 1; 2; 3 ] |> List.map ~f:(add_position pos) in
+    let positions = [ 1; 2; 3 ] |> List.map ~f:(add_position (pos * 3)) in
     let scores = positions |> List.map ~f:(( + ) score) in
     List.map2 ~f:(fun pos score -> { player with pos; score }) positions scores
     |> List.fold_left ~init:(0, 0) ~f:(fun (p1_wins_acc, p2_wins_acc) player ->
