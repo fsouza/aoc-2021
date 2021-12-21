@@ -14,7 +14,6 @@ end
 module IntMap = Map.Make (Int)
 module IntSet = Set.Make (Int)
 module PosSet = Set.Make (Pos)
-module StringMap = Map.Make (String)
 
 type position = Pos.t
 
@@ -26,12 +25,15 @@ type scanner = {
   pos : position;
 }
 
-module ScannerSet = Set.Make (struct
+module Scanner = struct
   type t = scanner
 
   let compare { name = name1; _ } { name = name2; _ } =
     String.compare name1 name2
-end)
+end
+
+module ScannerMap = Map.Make (Scanner)
+module ScannerSet = Set.Make (Scanner)
 
 let parse_beacon line =
   match String.split_on_char ~sep:',' line with
@@ -157,10 +159,45 @@ let build_adjacency_list scanners =
               (ScannerSet.remove candidate scanners))
   in
   scanners
-  |> ScannerSet.fold ~init:StringMap.empty ~f:(fun ({ name; _ } as scanner) ->
-         StringMap.add ~key:name
+  |> ScannerSet.fold ~init:ScannerMap.empty ~f:(fun scanner ->
+         ScannerMap.add ~key:scanner
            ~data:
              (find_adjacents [] scanner (ScannerSet.remove scanner scanners)))
+
+let zip3 =
+  let open Seq in
+  let rec zip3 l1 l2 l3 () =
+    match (l1, l2, l3) with
+    | [], [], [] -> Nil
+    | hd1 :: tl1, hd2 :: tl2, hd3 :: tl3 ->
+        Cons ((hd1, hd2, hd3), zip3 tl1 tl2 tl3)
+    | _ -> failwith "length mismatch"
+  in
+  zip3
+
+let collect_beacons g =
+  let rec collect_beacons' beacons visited = function
+    | [] -> beacons
+    | (scanner, _) :: tl when ScannerSet.mem scanner visited ->
+        collect_beacons' beacons visited tl
+    | (({ xs; ys; zs; pos = x, y, z; _ } as scanner), (x_acc, y_acc, z_acc))
+      :: tl ->
+        let xs = List.map ~f:(( + ) x_acc) xs in
+        let ys = List.map ~f:(( + ) y_acc) ys in
+        let zs = List.map ~f:(( + ) z_acc) zs in
+        let beacons_seq = zip3 xs ys zs in
+        let beacons = PosSet.add_seq beacons_seq beacons in
+        let visited = ScannerSet.add scanner visited in
+        let next =
+          ScannerMap.find scanner g
+          |> List.filter_map ~f:(fun sc ->
+                 if ScannerSet.mem sc visited then None
+                 else Some (sc, (x + x_acc, y + y_acc, z + z_acc)))
+        in
+        collect_beacons' beacons visited (tl @ next)
+  in
+  let ({ pos = x, y, z; _ } as first), _ = ScannerMap.min_binding g in
+  collect_beacons' PosSet.empty ScannerSet.empty [ (first, (x, y, z)) ]
 
 let () =
   let re = Str.regexp "\n\n" in
@@ -173,9 +210,4 @@ let () =
     |> ScannerSet.of_list
     |> build_adjacency_list
   in
-  scanners
-  |> StringMap.iter ~f:(fun ~key ~data ->
-         print_endline "-----------";
-         Printf.printf "%s:\n" key;
-         data |> List.iter ~f:(fun { name; _ } -> Printf.printf "- %s\n" name);
-         print_endline "-----------")
+  scanners |> collect_beacons |> PosSet.cardinal |> Printf.printf "%d\n"
