@@ -41,7 +41,14 @@ let play =
 
 let quantum_play =
   let rec play' ({ score; pos; id } as player) other_player =
-    let positions = [ 1; 2; 3 ] |> List.map ~f:(add_position (pos * 3)) in
+    let positions =
+      (* each roll should split the universe in 3, and the rules are the same, so:
+
+         - when I roll it once, I split the universe in 3. In those 3 universes
+         I need to run the second time, and they get split in 3, finally I run
+         one again, so I end-up with 27 universes from 1 run (I think) *)
+      [ 1; 2; 3 ] |> List.map ~f:(fun v -> add_position pos (v * 3))
+    in
     let scores = positions |> List.map ~f:(( + ) score) in
     List.map2 ~f:(fun pos score -> { player with pos; score }) positions scores
     |> List.fold_left ~init:(0, 0) ~f:(fun (p1_wins_acc, p2_wins_acc) player ->
