@@ -69,13 +69,6 @@ let parse_scanner input =
              in
              { name = head; xs; ys; zs; pos = (0, 0, 0) })
 
-let get_z_index x_idx y_idx =
-  [ 0; 1; 2 ]
-  |> IntSet.of_list
-  |> IntSet.remove x_idx
-  |> IntSet.remove y_idx
-  |> IntSet.min_elt
-
 let print_diffs =
   IntMap.iter ~f:(fun ~key ~data ->
       if data > 1 then Printf.printf "  %d: %d\n" key data)
@@ -83,8 +76,8 @@ let print_diffs =
 let print_axis = List.iter ~f:(Printf.printf "- %d\n")
 let negative = List.map ~f:(( * ) (-1))
 
-let check_adjency { xs = xs1; ys = ys1; _ } { xs = xs2; ys = ys2; zs = zs2; _ }
-    =
+let check_adjency { xs = xs1; ys = ys1; zs = zs1; _ }
+    { xs = xs2; ys = ys2; zs = zs2; _ } =
   let get_diffs axis1 axis2 =
     axis1
     |> List.map ~f:(fun v1 -> axis2 |> List.map ~f:(fun v2 -> v1 - v2))
@@ -116,15 +109,20 @@ let check_adjency { xs = xs1; ys = ys1; _ } { xs = xs2; ys = ys2; zs = zs2; _ }
   match find_index xs1 IntSet.empty 0 with
   | None -> None
   | Some (x_idx, x_diff) -> (
-      match
-        find_index ~f:(( = ) x_diff) ys1
-          (IntSet.of_list [ x_idx; other_idx x_idx ])
-          0
-      with
+      let visited = IntSet.of_list [ x_idx; other_idx x_idx ] in
+      let f = ( = ) x_diff in
+      match find_index ~f ys1 visited 0 with
       | None -> failwith "broken invariant: can find x, but not y?!?!?!"
-      | Some (y_idx, _) ->
-          let z_idx = get_z_index x_idx y_idx in
-          Some (other_axis.(x_idx), other_axis.(y_idx), other_axis.(z_idx)))
+      | Some (y_idx, _) -> (
+          let visited =
+            visited |> IntSet.add y_idx |> IntSet.add (other_idx y_idx)
+          in
+          match find_index ~f zs1 visited 0 with
+          | None ->
+              failwith "broken invariant: can find x and y, but not z?!?!?!"
+          | Some (z_idx, _) ->
+              Some (other_axis.(x_idx), other_axis.(y_idx), other_axis.(z_idx)))
+      )
 
 type state = { scanners : scanner list; beacons : PosSet.t }
 
