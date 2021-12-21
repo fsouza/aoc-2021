@@ -182,6 +182,7 @@ let collect_beacons g =
         collect_beacons' beacons visited tl
     | (({ xs; ys; zs; pos = x, y, z; _ } as scanner), (x_acc, y_acc, z_acc))
       :: tl ->
+        Printf.printf "visiting %s at (%d, %d, %d)\n" scanner.name x y z;
         let xs = List.map ~f:(( + ) x_acc) xs in
         let ys = List.map ~f:(( + ) y_acc) ys in
         let zs = List.map ~f:(( + ) z_acc) zs in
@@ -196,8 +197,8 @@ let collect_beacons g =
         in
         collect_beacons' beacons visited (tl @ next)
   in
-  let ({ pos = x, y, z; _ } as first), _ = ScannerMap.min_binding g in
-  collect_beacons' PosSet.empty ScannerSet.empty [ (first, (x, y, z)) ]
+  let first, _ = ScannerMap.min_binding g in
+  collect_beacons' PosSet.empty ScannerSet.empty [ (first, (0, 0, 0)) ]
 
 let () =
   let re = Str.regexp "\n\n" in
