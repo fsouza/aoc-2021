@@ -70,7 +70,7 @@ let print_diffs =
 let print_axis = List.iter ~f:(Printf.printf "- %d\n")
 let negative = List.map ~f:(( * ) (-1))
 
-let check_adjency { xs = xs1; ys = ys1; zs = zs1; _ }
+let check_adjency { xs = xs1; ys = ys1; zs = zs1; pos = x1, y1, z1; _ }
     ({ xs = xs2; ys = ys2; zs = zs2; _ } as scanner2) =
   (* Takes two scanners and returns an option: if the second scanner is adjancent
       to the first one, returns Some <scanner>, which will be the second scanner
@@ -113,10 +113,10 @@ let check_adjency { xs = xs1; ys = ys1; zs = zs1; _ }
         Some
           {
             scanner2 with
-            xs = other_axis.(x_idx);
-            ys = other_axis.(y_idx);
-            zs = other_axis.(z_idx);
-            pos = (x_diff, y_diff, z_diff);
+            xs = other_axis.(x_idx) |> List.map ~f:(( + ) x_diff);
+            ys = other_axis.(y_idx) |> List.map ~f:(( + ) y_diff);
+            zs = other_axis.(z_idx) |> List.map ~f:(( + ) z_diff);
+            pos = (x_diff + x1, y_diff + y1, z_diff + z1);
           }
   in
   let find_y x_idx x_diff ys =
@@ -158,11 +158,17 @@ let build_adjacency_list scanners =
             find_adjacents (adj :: adjs) scanner
               (ScannerSet.remove candidate scanners))
   in
-  scanners
-  |> ScannerSet.fold ~init:ScannerMap.empty ~f:(fun scanner ->
-         ScannerMap.add ~key:scanner
-           ~data:
-             (find_adjacents [] scanner (ScannerSet.remove scanner scanners)))
+  let rec build' map = function
+    | [] -> map
+    | scanner :: tl when ScannerMap.mem scanner map -> build' map tl
+    | scanner :: tl ->
+        let adjs =
+          find_adjacents [] scanner (ScannerSet.remove scanner scanners)
+        in
+        let map = ScannerMap.add ~key:scanner ~data:adjs map in
+        build' map (tl @ adjs)
+  in
+  build' ScannerMap.empty [ ScannerSet.min_elt scanners ]
 
 let zip3 =
   let open Seq in
@@ -178,28 +184,22 @@ let zip3 =
 let collect_beacons g =
   let rec collect_beacons' beacons visited = function
     | [] -> beacons
-    | (scanner, _) :: tl when ScannerSet.mem scanner visited ->
+    | scanner :: tl when ScannerSet.mem scanner visited ->
         collect_beacons' beacons visited tl
-    | (({ xs; ys; zs; pos = x, y, z; _ } as scanner), (x_acc, y_acc, z_acc))
-      :: tl ->
-        Printf.printf "visiting %s at (%d, %d, %d)\n" scanner.name (x_acc - x)
-          (y_acc - y) (z_acc - z);
-        let xs = List.map ~f:(( - ) x_acc) xs in
-        let ys = List.map ~f:(( - ) y_acc) ys in
-        let zs = List.map ~f:(( - ) z_acc) zs in
+    | ({ xs; ys; zs; pos = x, y, z; _ } as scanner) :: tl ->
+        Printf.printf "visiting %s at (%d, %d, %d)\n" scanner.name x y z;
         let beacons_seq = zip3 xs ys zs in
         let beacons = PosSet.add_seq beacons_seq beacons in
         let visited = ScannerSet.add scanner visited in
         let next =
           ScannerMap.find scanner g
           |> List.filter_map ~f:(fun sc ->
-                 if ScannerSet.mem sc visited then None
-                 else Some (sc, (x + x_acc, y + y_acc, z + z_acc)))
+                 if ScannerSet.mem sc visited then None else Some sc)
         in
         collect_beacons' beacons visited (tl @ next)
   in
   let first, _ = ScannerMap.min_binding g in
-  collect_beacons' PosSet.empty ScannerSet.empty [ (first, (0, 0, 0)) ]
+  collect_beacons' PosSet.empty ScannerSet.empty [ first ]
 
 let () =
   let re = Str.regexp "\n\n" in
