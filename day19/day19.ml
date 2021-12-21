@@ -14,6 +14,7 @@ end
 module IntMap = Map.Make (Int)
 module IntSet = Set.Make (Int)
 module PosSet = Set.Make (Pos)
+module StringMap = Map.Make (String)
 
 type position = Pos.t
 
@@ -25,21 +26,12 @@ type scanner = {
   pos : position;
 }
 
-let gen_signs (x, y, z) =
-  [
-    (x, y, z);
-    (x, y, -z);
-    (x, -y, z);
-    (x, -y, -z);
-    (-x, y, z);
-    (-x, y, -z);
-    (-x, -y, z);
-    (-x, -y, -z);
-  ]
+module ScannerSet = Set.Make (struct
+  type t = scanner
 
-let all_possibilities (x, y, z) =
-  [ (x, y, z); (x, z, y); (y, x, z); (y, z, x); (z, x, y); (z, y, x) ]
-  |> List.concat_map ~f:gen_signs
+  let compare { name = name1; _ } { name = name2; _ } =
+    String.compare name1 name2
+end)
 
 let parse_beacon line =
   match String.split_on_char ~sep:',' line with
@@ -114,14 +106,14 @@ let check_adjency { xs = xs1; ys = ys1; zs = zs1; _ }
   let find_z ~f x_idx x_diff y_idx y_diff visited zs =
     let visited = visited |> IntSet.add y_idx |> IntSet.add (other_idx y_idx) in
     match find_index ~f zs visited 0 with
-    | None -> failwith "broken invariant: can find x and y, but not z?!?!?!"
+    | None -> None
     | Some (z_idx, z_diff) ->
         Some
           {
             scanner2 with
-            xs = other_axis.(x_idx) |> List.map ~f:(( + ) x_diff);
-            ys = other_axis.(y_idx) |> List.map ~f:(( + ) y_diff);
-            zs = other_axis.(z_idx) |> List.map ~f:(( + ) z_diff);
+            xs = other_axis.(x_idx);
+            ys = other_axis.(y_idx);
+            zs = other_axis.(z_idx);
             pos = (x_diff, y_diff, z_diff);
           }
   in
@@ -129,7 +121,7 @@ let check_adjency { xs = xs1; ys = ys1; zs = zs1; _ }
     let visited = IntSet.of_list [ x_idx; other_idx x_idx ] in
     let f = ( = ) x_diff in
     match find_index ~f ys visited 0 with
-    | None -> failwith "broken invariant: can find x, but not y?!?!?!"
+    | None -> None
     | Some (y_idx, y_diff) -> (
         let find_z = find_z ~f x_idx x_diff y_idx y_diff visited in
         match find_z zs1 with
@@ -149,9 +141,26 @@ let check_adjency { xs = xs1; ys = ys1; zs = zs1; _ }
   | None -> find_x (negative xs1)
   | r -> r
 
-type state = { scanners : scanner list; beacons : PosSet.t }
+let print_scanners =
+  List.iter ~f:(fun { name; _ } -> Printf.printf "  scanner %s\n" name)
 
-let make_state scanners = { scanners; beacons = PosSet.empty }
+let build_adjacency_list scanners =
+  let rec find_adjacents adjs scanner scanners =
+    match ScannerSet.min_elt_opt scanners with
+    | None -> adjs
+    | Some candidate -> (
+        match check_adjency scanner candidate with
+        | None ->
+            find_adjacents adjs scanner (ScannerSet.remove candidate scanners)
+        | Some adj ->
+            find_adjacents (adj :: adjs) scanner
+              (ScannerSet.remove candidate scanners))
+  in
+  scanners
+  |> ScannerSet.fold ~init:StringMap.empty ~f:(fun ({ name; _ } as scanner) ->
+         StringMap.add ~key:name
+           ~data:
+             (find_adjacents [] scanner (ScannerSet.remove scanner scanners)))
 
 let () =
   let re = Str.regexp "\n\n" in
@@ -161,8 +170,12 @@ let () =
     |> String.concat ~sep:"\n"
     |> Str.split re
     |> List.filter_map ~f:parse_scanner
-    |> Array.of_list
+    |> ScannerSet.of_list
+    |> build_adjacency_list
   in
-  match check_adjency scanners.(0) scanners.(1) with
-  | None -> failwith "0 and 1 should be adjacent in the sample input"
-  | Some _ -> print_endline "ok"
+  scanners
+  |> StringMap.iter ~f:(fun ~key ~data ->
+         print_endline "-----------";
+         Printf.printf "%s:\n" key;
+         data |> List.iter ~f:(fun { name; _ } -> Printf.printf "- %s\n" name);
+         print_endline "-----------")
