@@ -39,31 +39,73 @@ let play =
   in
   play' 0 1
 
-let quantum_play =
-  let rec play' ({ score; pos; id } as player) other_player =
-    let positions =
-      (* each roll should split the universe in 3, and the rules are the same, so:
+let cache_key { score; pos; _ } { score = other_score; pos = other_pos; _ } =
+  Printf.sprintf "%d|%d|%d|%d" score pos other_score other_pos
 
-         - when I roll it once, I split the universe in 3. In those 3 universes
-         I need to run the second time, and they get split in 3, finally I run
-         one again, so I end-up with 27 universes from 1 run (I think) *)
-      [ 1; 2; 3 ] |> List.map ~f:(fun v -> add_position pos (v * 3))
-    in
-    let scores = positions |> List.map ~f:(( + ) score) in
-    List.map2 ~f:(fun pos score -> { player with pos; score }) positions scores
-    |> List.fold_left ~init:(0, 0) ~f:(fun (p1_wins_acc, p2_wins_acc) player ->
-           if player.score >= 21 then
-             if id = "1" then (p1_wins_acc + 1, p2_wins_acc)
-             else (p1_wins_acc, p2_wins_acc + 1)
-           else
-             let p1_wins, p2_wins = play' other_player player in
-             (p1_wins + p1_wins_acc, p2_wins + p2_wins_acc))
+let all_possibilities =
+  let open Seq in
+  let rec all_possibilities first_die second_die third_die () =
+    if first_die > 3 then Nil
+    else if second_die > 3 then all_possibilities (first_die + 1) 1 1 ()
+    else if third_die > 3 then all_possibilities first_die (second_die + 1) 1 ()
+    else
+      Cons
+        ( first_die + second_die + third_die,
+          all_possibilities first_die second_die (third_die + 1) )
   in
-  play'
+  all_possibilities 1 1 1
+
+let quantum_play =
+  let cache = Hashtbl.create 10 in
+  let rec cached_play player other_player =
+    let key = cache_key player other_player in
+    match Hashtbl.find_opt cache key with
+    | Some result -> result
+    | None ->
+        let result = play' player other_player in
+        Hashtbl.add cache key result;
+        result
+  and play' ({ score; pos; _ } as player) other_player =
+    if other_player.score >= 21 then (0, 1)
+    else
+      let positions =
+        (* each roll should split the universe in 3, the process is:
+
+           First roll, splits universe in 3:
+
+             - First universe rolled 1
+             - Second universe rolled 2
+             - Third universe rolled 3
+
+           Then each of those, will run again, adding to 9 universes:
+
+             - 1, 1
+             - 1, 2
+             - 1, 3
+             - 2, 1
+             - 2, 2
+             - 2, 3
+             - 3, 1
+             - 3, 2
+             - 3, 3
+
+           Finally, each of those 9 universes will run the die again, splitting
+           into 9 total universes. *)
+        all_possibilities |> Seq.map (add_position pos)
+      in
+      let scores = positions |> Seq.map (( + ) score) in
+      Aoc.zip positions scores
+      |> Seq.map (fun (pos, score) -> { player with pos; score })
+      |> Seq.fold_left
+           (fun (p1_wins_acc, p2_wins_acc) player ->
+             let p2_wins, p1_wins = cached_play other_player player in
+             (p1_wins + p1_wins_acc, p2_wins + p2_wins_acc))
+           (0, 0)
+  in
+  cached_play
 
 let best_quantum_player player1 player2 =
   let p1_wins, p2_wins = quantum_play player1 player2 in
-  Printf.printf "P1 wins: %d\tP2 wins: %d\n" p1_wins p2_wins;
   if p1_wins > p2_wins then p1_wins else p2_wins
 
 let () =
