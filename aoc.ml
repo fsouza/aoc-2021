@@ -13,6 +13,8 @@ let rec take n seq () =
     | Nil -> Nil
     | Cons (v, seq) -> Cons (v, take (n - 1) seq)
 
+let rec repeat v () = Cons (v, repeat v)
+
 let rec zip seq1 seq2 () =
   match (seq1 (), seq2 ()) with
   | Cons (v1, seq1), Cons (v2, seq2) -> Cons ((v1, v2), zip seq1 seq2)
