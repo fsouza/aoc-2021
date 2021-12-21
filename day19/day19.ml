@@ -182,10 +182,11 @@ let collect_beacons g =
         collect_beacons' beacons visited tl
     | (({ xs; ys; zs; pos = x, y, z; _ } as scanner), (x_acc, y_acc, z_acc))
       :: tl ->
-        Printf.printf "visiting %s at (%d, %d, %d)\n" scanner.name x y z;
-        let xs = List.map ~f:(( + ) x_acc) xs in
-        let ys = List.map ~f:(( + ) y_acc) ys in
-        let zs = List.map ~f:(( + ) z_acc) zs in
+        Printf.printf "visiting %s at (%d, %d, %d)\n" scanner.name (x_acc - x)
+          (y_acc - y) (z_acc - z);
+        let xs = List.map ~f:(( - ) x_acc) xs in
+        let ys = List.map ~f:(( - ) y_acc) ys in
+        let zs = List.map ~f:(( - ) z_acc) zs in
         let beacons_seq = zip3 xs ys zs in
         let beacons = PosSet.add_seq beacons_seq beacons in
         let visited = ScannerSet.add scanner visited in
