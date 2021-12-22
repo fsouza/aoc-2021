@@ -1,3 +1,62 @@
+(* The solution below is the brute-force, which I believe is correct, but won't
+   really run on the larger sample input or the real input: it takes too long
+   and uses too much memory.
+
+   An alternative would be to represent cuboids in the plane as ranges, and then
+   split them into separate cuboids as needed. Let's use a 2d space to
+   understand what we need to do.
+
+   Assuming 2d and the following instructions:
+
+     1) on x=1..3,y=1..3
+     2) on x=2..4,y=2..4
+     3) off x=0..2,y=0..2
+     4) on x=1..1,y=1..1
+
+   After executing the first instrution, the plane would look something like:
+
+     .......
+     .###...
+     .###...
+     .###...
+     .......
+     .......
+     .......
+
+   Here we have one rectangle, which would be represented as a pair: the
+   top-left point, and the bottom-right one, so ((1, 1), (3,3)).
+
+   After the second instruction, the plane would become something like:
+
+     .......
+     .###...
+     .####..
+     .####..
+     ..###..
+     .......
+     .......
+
+   In that case, we could have 3 rectangles:
+
+     - ((1,1), (3,1))
+     - ((1,2), (4,3))
+     - ((2,4), (4,4))
+
+   (other representations are just possible, the specific splitting logic would
+   be defined in the algorithm).
+
+   Note: coordinates are using (x, y), with (0, 0) being the top-left. Actual
+   implementation would use 3 coordinates.
+
+   This is too annoying/tedious, so I'm not going for it right now, I may revisit
+   it in the future though :)
+
+   I think there may be an even simpler approach working solely on ranges: each instruction would cause an operation on all known ranges, where the outcomes could be:
+
+     - for `off`: new ranges that exclude the positions that are now off
+     - for `on`: a new range that merges the two ranges if they intersect
+     - others? *)
+
 open MoreLabels
 
 module Pos = struct
