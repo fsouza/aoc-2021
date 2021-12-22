@@ -13,7 +13,7 @@
      3) off x=0..2,y=0..2
      4) on x=1..1,y=1..1
 
-   After executing the first instrution, the plane would look something like:
+   After executing the first instruction, the plane would look something like:
 
      .......
      .###...
@@ -57,6 +57,7 @@
      - for `on`: a new range that merges the two ranges if they intersect
      - others? *)
 
+open StdLabels
 open MoreLabels
 
 module Pos = struct
@@ -123,9 +124,25 @@ let execute state { action; x_range; y_range; z_range } =
   | On -> PosSet.add_seq positions state
   | Off -> positions |> Seq.fold_left (Fun.flip PosSet.remove) state
 
-let () =
-  Aoc.stdin
-  |> Seq.filter_map parse
+let part1 instructions =
+  instructions
+  |> Seq.filter
+       (fun
+         {
+           x_range = min_x, max_x;
+           y_range = min_y, max_y;
+           z_range = min_z, max_z;
+           _;
+         }
+       ->
+         let mins = [ min_x; min_y; min_z ] in
+         let maxes = [ max_x; max_y; max_z ] in
+         List.for_all ~f:(( <= ) (-50)) mins
+         && List.for_all ~f:(( >= ) 50) maxes)
   |> Seq.fold_left execute PosSet.empty
   |> PosSet.cardinal
   |> Printf.printf "%d\n"
+
+let () =
+  let instructions = Aoc.stdin |> Seq.filter_map parse in
+  part1 instructions
