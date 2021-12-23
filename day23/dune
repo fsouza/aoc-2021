@@ -1,0 +1,4 @@
+(executable
+ (name day23)
+ (libraries aoc)
+ (modules Day23))
