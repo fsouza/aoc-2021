@@ -194,8 +194,9 @@ let possible_states ({ hallway; rooms } as state) =
     if room_idx = Array.length rooms then Nil
     else
       match rooms.(room_idx) with
-      | [] -> Nil
-      | l when List.for_all ~f:(fun a -> room_number a = room_idx) l -> Nil
+      | [] -> gen_moves_out_of_rooms (room_idx + 1) ()
+      | l when List.for_all ~f:(fun a -> room_number a = room_idx) l ->
+          gen_moves_out_of_rooms (room_idx + 1) ()
       | amphipod :: tl ->
           let door = door_hallway_positions.(room_idx) in
           let rec generate_moves free_hallway_positions () =
