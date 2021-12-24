@@ -15,6 +15,7 @@ module type S = sig
   val mem : key:key -> t -> bool
   val upsert : key:key -> priority:int -> t -> t
   val poll : t -> (key * t) option
+  val poll_key_priority : t -> (key * int * t) option
 end
 
 module Make (Ord : OrderedType) = struct
@@ -86,6 +87,11 @@ module Make (Ord : OrderedType) = struct
     | None -> raise Not_found
     | Some (key, _) -> key
 
+  let force_read_key_data arr idx =
+    match arr.(idx) with
+    | None -> raise Not_found
+    | Some (key, data) -> (key, data)
+
   let rec sink pos ({ data; length; _ } as heap) =
     let left, right = children_idx pos in
     if left >= length then heap
@@ -134,4 +140,10 @@ module Make (Ord : OrderedType) = struct
     else
       let v = force_read_key data 0 in
       Some (v, remove ~pos:0 heap)
+
+  let poll_key_priority ({ data; length; _ } as heap) =
+    if length = 0 then None
+    else
+      let key, priority = force_read_key_data data 0 in
+      Some (key, priority, remove ~pos:0 heap)
 end

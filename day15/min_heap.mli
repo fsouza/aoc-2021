@@ -12,6 +12,7 @@ module type S = sig
   val mem : key:key -> t -> bool
   val upsert : key:key -> priority:int -> t -> t
   val poll : t -> (key * t) option
+  val poll_key_priority : t -> (key * int * t) option
 end
 
 module Make (Ord : OrderedType) : S with type key = Ord.t
