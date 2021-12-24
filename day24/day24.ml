@@ -97,45 +97,36 @@ let execute ({ input; vars; input_idx } as state) = function
 let int_of_array =
   Array.fold_left ~init:0 ~f:(fun acc digit -> (acc * 10) + digit)
 
-let cache_key { vars; _ } ip =
-  let get_var v = Vars.find v vars in
-  Printf.sprintf "x=%d,y=%d,w=%d,z=%d,ip=%d" (get_var X) (get_var Y) (get_var W)
-    (get_var Z) ip
-
-let find_highest_monad program =
-  let start = Array.make 14 9 in
-  let cache = Hashtbl.create 10 in
-  let rec cached_execution state = function
+let find_highest_monad program digit =
+  let start = Array.make 14 digit in
+  let rec execute_instructions state = function
     | [] -> state
-    | (ip, _) :: _ as instructions -> (
-        let key = cache_key state ip in
-        match Hashtbl.find_opt cache key with
-        | Some result -> result
-        | None ->
-            let result = execute_instructions state instructions in
-            Hashtbl.add ~key ~data:result cache;
-            result)
-  and execute_instructions state = function
-    | [] -> state
-    | (_, inst) :: tl ->
+    | inst :: tl ->
         let state = execute state inst in
-        cached_execution state tl
+        execute_instructions state tl
   in
-  let rec find_highest_monad input =
+  let rec find_highest_monad step input =
+    if step mod 1000000 = 0 then (
+      Printf.printf "%d\n" @@ int_of_array input;
+      flush stdout);
     let state = make_state input in
-    let { vars; _ } = cached_execution state program in
+    let { vars; _ } = execute_instructions state program in
     let z = Vars.find Z vars in
-    if z = 0 then int_of_array input
+    if z = 0 then (
+      let v = int_of_array input in
+      Printf.printf "found answer %d\n" v;
+      v)
     else (
       decr input;
-      find_highest_monad input)
+      if input.(0) <> digit then min_int
+      else find_highest_monad (step + 1) input)
   in
-  find_highest_monad start
+  find_highest_monad 0 start
 
 let () =
-  Aoc.stdin
-  |> Seq.filter_map parse
-  |> Aoc.zip Aoc.nat
-  |> List.of_seq
-  |> find_highest_monad
+  let digits = [ 9; 8; 7; 6; 5; 4; 3; 2 ] in
+  let program = Aoc.stdin |> Seq.filter_map parse |> List.of_seq in
+  Parmap.parmapfold
+    (find_highest_monad program)
+    (Parmap.L digits) max min_int max
   |> Printf.printf "%d\n"
