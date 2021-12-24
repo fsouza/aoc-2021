@@ -2,17 +2,22 @@ open StdLabels
 open MoreLabels
 module IntSet = Set.Make (Int)
 
-type t = { rooms : Amphipod.t list array; hallway : Amphipod.t option array }
+type t = {
+  rooms : Amphipod.t list array;
+  hallway : Amphipod.t option array;
+  room_capacity : int;
+}
 
-let make rooms = { rooms; hallway = Array.make 11 None }
+let make rooms =
+  { rooms; hallway = Array.make 11 None; room_capacity = List.length rooms.(0) }
 
-let copy { rooms; hallway } =
-  { rooms = Array.copy rooms; hallway = Array.copy hallway }
+let copy { rooms; hallway; room_capacity } =
+  { rooms = Array.copy rooms; hallway = Array.copy hallway; room_capacity }
 
 let door_hallway_positions = [| 2; 4; 6; 8 |]
 let parking_hallway_positions = [ 0; 1; 3; 5; 7; 9; 10 ]
 
-let to_string { rooms; hallway } =
+let to_string { rooms; hallway; room_capacity } =
   let first_row = "#############" in
   let hallway_str =
     hallway
@@ -24,26 +29,36 @@ let to_string { rooms; hallway } =
     |> String.of_seq
     |> Printf.sprintf "#%s#"
   in
-  let third_row = "###.#.#.#.###" |> String.to_seq |> Array.of_seq in
-  let fourth_row = "  #.#.#.#.#  " |> String.to_seq |> Array.of_seq in
+  let room_rows =
+    [ "###.#.#.#.###" |> String.to_seq |> Array.of_seq ]
+    @ List.init ~len:(room_capacity - 1) ~f:(fun _ ->
+          "  #.#.#.#.#  " |> String.to_seq |> Array.of_seq)
+    |> Array.of_list
+  in
   let last_row = "  #########  " in
   rooms
   |> Array.to_seqi
   |> Seq.iter (fun (idx, room) ->
+         let rec chars acc = function
+           | [] ->
+               let acc = List.rev acc in
+               let dots = room_capacity - List.length acc in
+               List.init ~len:dots ~f:(Fun.const '.') @ acc
+           | a :: tl -> chars (Amphipod.to_char a :: acc) tl
+         in
          let pos = door_hallway_positions.(idx) + 1 in
-         match room with
-         | [ a ] -> fourth_row.(pos) <- Amphipod.to_char a
-         | [ a1; a2 ] ->
-             third_row.(pos) <- Amphipod.to_char a1;
-             fourth_row.(pos) <- Amphipod.to_char a2
-         | _ -> ());
-  [
-    first_row;
-    hallway_str;
-    third_row |> Array.to_seq |> String.of_seq;
-    fourth_row |> Array.to_seq |> String.of_seq;
-    last_row;
-  ]
+         room
+         |> chars []
+         |> List.iteri ~f:(fun row ch -> room_rows.(row).(pos) <- ch));
+  let room_rows =
+    room_rows
+    |> Array.to_seq
+    |> Seq.map Array.to_seq
+    |> Seq.map String.of_seq
+    |> List.of_seq
+  in
+  [ [ first_row ]; [ hallway_str ]; room_rows; [ last_row ] ]
+  |> List.flatten
   |> String.concat ~sep:"\n"
 
 let compare_hallway_pos a1 a2 =
@@ -53,8 +68,8 @@ let compare_hallway_pos a1 a2 =
   | None, _ -> -1
   | Some a1, Some a2 -> Amphipod.compare a1 a2
 
-let compare { rooms = rooms1; hallway = hallway1 }
-    { rooms = rooms2; hallway = hallway2 } =
+let compare { rooms = rooms1; hallway = hallway1; _ }
+    { rooms = rooms2; hallway = hallway2; _ } =
   let rec compare_rooms idx =
     if idx = Array.length rooms1 then 0
     else
@@ -62,9 +77,9 @@ let compare { rooms = rooms1; hallway = hallway1 }
       | [], [] -> compare_rooms (idx + 1)
       | l1, l2 when List.length l1 < List.length l2 -> -1
       | l1, l2 when List.length l1 > List.length l2 -> 1
-      | l1, l2 ->
-          let rec compare_amphipods l1 l2 =
-            match (l1, l2) with
+      | room1, room2 ->
+          let rec compare_amphipods room1 room2 =
+            match (room1, room2) with
             | [], [] -> compare_rooms (idx + 1)
             | [], _ -> -1
             | _, [] -> 1
@@ -72,7 +87,7 @@ let compare { rooms = rooms1; hallway = hallway1 }
                 let cmp = Amphipod.compare hd1 hd2 in
                 if cmp <> 0 then cmp else compare_amphipods tl1 tl2
           in
-          compare_amphipods l1 l2
+          compare_amphipods room1 room2
   in
   let rec compare_hallway idx =
     if idx = Array.length hallway1 then compare_rooms 0
@@ -82,7 +97,7 @@ let compare { rooms = rooms1; hallway = hallway1 }
   in
   compare_hallway 0
 
-let is_finished { rooms; hallway } =
+let is_finished { rooms; hallway; _ } =
   let rec check_rooms idx =
     if idx = Array.length rooms then true
     else
@@ -121,16 +136,15 @@ let path_cost { hallway; _ } ~step_cost ~origin ~target =
   then Some (List.length steps * step_cost)
   else None
 
-let can_move_to_room { rooms; _ } amphipod =
+let can_move_to_room { rooms; room_capacity; _ } amphipod =
   let room_number = Amphipod.room_number amphipod in
-  match rooms.(room_number) with
-  | [] -> true
-  | [ other_amphipod ] when Amphipod.compare other_amphipod amphipod = 0 -> true
-  | _ -> false
+  let room = rooms.(room_number) in
+  List.length room < room_capacity
+  && List.for_all ~f:(fun a -> Amphipod.compare amphipod a = 0) room
 
 (* calculates the possible states from the current state, by moving one
    amphipod into the hallway or into a room *)
-let next ({ hallway; rooms } as state) =
+let next ({ hallway; rooms; room_capacity } as state) =
   let occupied_hallway_positions =
     parking_hallway_positions
     |> List.filter_map ~f:(fun idx ->
@@ -146,7 +160,7 @@ let next ({ hallway; rooms } as state) =
           let room_length = List.length rooms.(room_number) in
           let door = door_hallway_positions.(room_number) in
           let step_cost = Amphipod.step_cost amphipod in
-          let extra_steps = 2 - room_length in
+          let extra_steps = room_capacity - room_length in
           match path_cost state ~step_cost ~origin:idx ~target:door with
           | None -> gen_moves_out_of_hallway tl ()
           | Some cost ->
@@ -172,7 +186,9 @@ let next ({ hallway; rooms } as state) =
             | [] -> Nil
             | hallway_pos :: free_hallway_positions -> (
                 let step_cost = Amphipod.step_cost amphipod in
-                let extra_steps = 2 - List.length rooms.(room_idx) + 1 in
+                let extra_steps =
+                  room_capacity - List.length rooms.(room_idx) + 1
+                in
                 match
                   path_cost state ~step_cost ~origin:door ~target:hallway_pos
                 with
