@@ -43,7 +43,7 @@ let simulate state =
           simulate' queue (State_set.add state visited)
   in
   let queue = State_heap.create ~capacity:10 () in
-  let queue = State_heap.upsert ~key:state ~priority:0 queue in
+  let queue = State_heap.insert ~key:state ~priority:0 queue in
   simulate' queue State_set.empty
 
 let () =
