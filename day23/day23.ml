@@ -20,6 +20,7 @@ let room_number = function
   | Copper -> 2
   | Desert -> 3
 
+let amphipod_eql a1 a2 = room_number a1 = room_number a2
 let pow_10 e = Float.pow 10. (Float.of_int e) |> Int.of_float
 let step_cost a = room_number a |> pow_10
 
@@ -49,7 +50,7 @@ let print_state { rooms; hallway } =
   |> List.map ~f:(function
        | None -> "."
        | Some a -> string_of_amphipod a)
-  |> String.concat ~sep:"."
+  |> String.concat ~sep:""
   |> Printf.printf "\nHallway: %s\n"
 
 module State = struct
@@ -133,7 +134,7 @@ let all_idx_between origin target =
   let rec move acc idx =
     if cmp idx target then acc else move (idx :: acc) (idx + step)
   in
-  move [] origin
+  move [] (origin + step)
 
 (* calculates the cost of going from origin to target given the current state.
    Returns `None` if the path is currently blocked. *)
@@ -152,10 +153,11 @@ let path_cost { hallway; _ } step_cost origin target =
   then Some (List.length steps * step_cost)
   else None
 
-let can_take_amphipod { rooms; _ } number =
-  match rooms.(number) with
+let can_move_to_room { rooms; _ } amphipod =
+  let room_number = room_number amphipod in
+  match rooms.(room_number) with
   | [] -> true
-  | [ amphipod ] when room_number amphipod = number -> true
+  | [ other_amphipod ] when amphipod_eql other_amphipod amphipod -> true
   | _ -> false
 
 (* calculates the possible states from the current state, by moving one
@@ -171,11 +173,11 @@ let possible_states ({ hallway; rooms } as state) =
     match positions with
     | [] -> Nil
     | (idx, amphipod) :: tl -> (
-        let room_number = room_number amphipod in
-        let room_length = List.length rooms.(room_number) in
-        if not @@ can_take_amphipod state room_number then
+        if not @@ can_move_to_room state amphipod then
           gen_moves_out_of_hallway tl ()
         else
+          let room_number = room_number amphipod in
+          let room_length = List.length rooms.(room_number) in
           let door = door_hallway_positions.(room_number) in
           let step_cost = step_cost amphipod in
           let extra_steps = 2 - room_length in
@@ -230,17 +232,16 @@ let simulate state =
   let rec simulate' queue visited =
     match State_heap.poll_key_priority queue with
     | None -> None
-    | Some (state, cost, queue) ->
-        if is_finished state then Some cost
+    | Some (state, base_cost, queue) ->
+        if is_finished state then Some base_cost
         else if State_set.mem state visited then simulate' queue visited
         else
           let queue =
             possible_states state
-            |> Seq.map (fun (state, partial_cost) ->
-                   (state, cost + partial_cost))
             |> Seq.fold_left
                  (fun queue (state, cost) ->
-                   State_heap.upsert ~key:state ~priority:cost queue)
+                   State_heap.upsert ~key:state ~priority:(base_cost + cost)
+                     queue)
                  queue
           in
           simulate' queue (State_set.add state visited)
