@@ -8,6 +8,12 @@ module IntSet = Set.Make (Int)
 
 type amphipod = Amber | Bronze | Copper | Desert
 
+let string_of_amphipod = function
+  | Amber -> "A"
+  | Bronze -> "B"
+  | Copper -> "C"
+  | Desert -> "D"
+
 let room_number = function
   | Amber -> 0
   | Bronze -> 1
@@ -19,16 +25,32 @@ let step_cost a = room_number a |> pow_10
 
 type state = { rooms : amphipod list array; hallway : amphipod option array }
 
-let is_finished { rooms; _ } =
-  let rec is_finished' idx =
+let is_finished { rooms; hallway } =
+  let rec check_rooms idx =
     if idx = Array.length rooms then true
     else
       let room = rooms.(idx) in
       if List.for_all ~f:(fun amphipod -> room_number amphipod = idx) room then
-        is_finished' (idx + 1)
+        check_rooms (idx + 1)
       else false
   in
-  is_finished' 0
+  Array.for_all ~f:Option.is_none hallway && check_rooms 0
+
+let print_state { rooms; hallway } =
+  rooms
+  |> Array.to_seqi
+  |> Seq.iter (fun (i, room) ->
+         let room =
+           room |> List.map ~f:string_of_amphipod |> String.concat ~sep:","
+         in
+         Printf.printf "Room: %d: %s\n" i room);
+  hallway
+  |> Array.to_list
+  |> List.map ~f:(function
+       | None -> "."
+       | Some a -> string_of_amphipod a)
+  |> String.concat ~sep:"."
+  |> Printf.printf "\nHallway: %s\n"
 
 module State = struct
   type t = state
@@ -116,10 +138,14 @@ let all_idx_between origin target =
 (* calculates the cost of going from origin to target given the current state.
    Returns `None` if the path is currently blocked. *)
 let path_cost { hallway; _ } step_cost origin target =
+  let door_positions =
+    door_hallway_positions |> Array.to_seq |> IntSet.of_seq
+  in
   let free_hallway_positions =
     parking_hallway_positions
     |> List.filter ~f:(fun idx -> Option.is_none hallway.(idx))
     |> IntSet.of_list
+    |> IntSet.union door_positions
   in
   let steps = all_idx_between origin target in
   if List.for_all ~f:(fun idx -> IntSet.mem idx free_hallway_positions) steps
