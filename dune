@@ -5,3 +5,7 @@
 (executable
  (name new_day)
  (modules New_day))
+
+(library
+ (name min_heap)
+ (modules Min_heap))

@@ -2,7 +2,3 @@
  (name day15)
  (libraries aoc min_heap)
  (modules Day15))
-
-(library
- (name min_heap)
- (modules Min_heap))
