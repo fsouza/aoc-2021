@@ -204,7 +204,11 @@ let possible_states ({ hallway; rooms } as state) =
             | [] -> Nil
             | hallway_pos :: free_hallway_positions -> (
                 let step_cost = step_cost amphipod in
-                let extra_steps = 2 - List.length rooms.(room_idx) + 1 in
+                (* The reason we +2 here is:
+
+                   1. we need +1 to account for getting out of the room
+                   2. "path_cost" won't count the origin as an step, so we need to account for it. *)
+                let extra_steps = 2 - List.length rooms.(room_idx) + 2 in
                 match path_cost state step_cost door hallway_pos with
                 | None -> generate_moves free_hallway_positions ()
                 | Some cost ->
@@ -240,7 +244,7 @@ let simulate state =
             possible_states state
             |> Seq.fold_left
                  (fun queue (state, cost) ->
-                   State_heap.upsert ~key:state ~priority:(base_cost + cost)
+                   State_heap.insert ~key:state ~priority:(base_cost + cost)
                      queue)
                  queue
           in
