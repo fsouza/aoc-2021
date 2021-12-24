@@ -26,35 +26,36 @@ let step_cost a = room_number a |> pow_10
 
 type state = { rooms : amphipod list array; hallway : amphipod option array }
 
-let is_finished { rooms; hallway } =
-  let rec check_rooms idx =
-    if idx = Array.length rooms then true
-    else
-      let room = rooms.(idx) in
-      if List.for_all ~f:(fun amphipod -> room_number amphipod = idx) room then
-        check_rooms (idx + 1)
-      else false
-  in
-  Array.for_all ~f:Option.is_none hallway && check_rooms 0
-
-let print_state { rooms; hallway } =
-  rooms
-  |> Array.to_seqi
-  |> Seq.iter (fun (i, room) ->
-         let room =
-           room |> List.map ~f:string_of_amphipod |> String.concat ~sep:","
-         in
-         Printf.printf "Room: %d: %s\n" i room);
-  hallway
-  |> Array.to_list
-  |> List.map ~f:(function
-       | None -> "."
-       | Some a -> string_of_amphipod a)
-  |> String.concat ~sep:""
-  |> Printf.printf "\nHallway: %s\n"
-
 module State = struct
   type t = state
+
+  let make rooms = { rooms; hallway = Array.make 11 None }
+
+  let copy { rooms; hallway } =
+    { rooms = Array.copy rooms; hallway = Array.copy hallway }
+
+  let to_string { rooms; hallway } =
+    let rooms_str =
+      rooms
+      |> Array.to_seqi
+      |> Seq.map (fun (i, room) ->
+             let room =
+               room |> List.map ~f:string_of_amphipod |> String.concat ~sep:","
+             in
+             Printf.sprintf "Room: %d: %s" i room)
+      |> List.of_seq
+      |> String.concat ~sep:"\n"
+    in
+    let hallway_str =
+      hallway
+      |> Array.to_list
+      |> List.map ~f:(function
+           | None -> "."
+           | Some a -> string_of_amphipod a)
+      |> String.concat ~sep:""
+      |> Printf.sprintf "Hallway: %s"
+    in
+    Printf.sprintf "%s\n%s" rooms_str hallway_str
 
   let compare_amphipod a1 a2 = Int.compare (room_number a1) (room_number a2)
 
@@ -93,17 +94,25 @@ module State = struct
         if r <> 0 then r else compare_hallway (idx + 1)
     in
     compare_hallway 0
+
+  let is_finished { rooms; hallway } =
+    let rec check_rooms idx =
+      if idx = Array.length rooms then true
+      else
+        let room = rooms.(idx) in
+        if List.for_all ~f:(fun amphipod -> room_number amphipod = idx) room
+        then check_rooms (idx + 1)
+        else false
+    in
+    Array.for_all ~f:Option.is_none hallway && check_rooms 0
 end
 
 module State_heap = Min_heap.Make (State)
 module State_set = Set.Make (State)
 
+let print_state state = Printf.printf "%s\n" @@ State.to_string state
 let door_hallway_positions = [| 2; 4; 6; 8 |]
 let parking_hallway_positions = [ 0; 1; 3; 5; 7; 9; 10 ]
-let make_state rooms = { rooms; hallway = Array.make 11 None }
-
-let copy_state { rooms; hallway } =
-  { rooms = Array.copy rooms; hallway = Array.copy hallway }
 
 let parse_amphipod = function
   | 'A' -> Some Amber
@@ -183,7 +192,7 @@ let possible_states ({ hallway; rooms } as state) =
           | None -> gen_moves_out_of_hallway tl ()
           | Some cost ->
               let cost = cost + (extra_steps * step_cost) in
-              let new_state = copy_state state in
+              let new_state = State.copy state in
               let room = new_state.rooms.(room_number) in
               new_state.rooms.(room_number) <- amphipod :: room;
               new_state.hallway.(idx) <- None;
@@ -209,7 +218,7 @@ let possible_states ({ hallway; rooms } as state) =
                 | None -> generate_moves free_hallway_positions ()
                 | Some cost ->
                     let cost = cost + (extra_steps * step_cost) in
-                    let new_state = copy_state state in
+                    let new_state = State.copy state in
                     new_state.rooms.(room_idx) <- tl;
                     new_state.hallway.(hallway_pos) <- Some amphipod;
                     Cons
@@ -233,7 +242,7 @@ let simulate state =
     match State_heap.poll_key_priority queue with
     | None -> None
     | Some (state, base_cost, queue) ->
-        if is_finished state then Some base_cost
+        if State.is_finished state then Some base_cost
         else if State_set.mem state visited then simulate' queue visited
         else
           let queue =
@@ -254,6 +263,6 @@ let () =
   Aoc.stdin
   |> Seq.filter_map parse
   |> get_rooms
-  |> make_state
+  |> State.make
   |> simulate
   |> Option.iter (Printf.printf "%d\n")
