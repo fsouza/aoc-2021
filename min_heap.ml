@@ -13,6 +13,7 @@ module type S = sig
 
   val create : capacity:int -> unit -> t
   val mem : key:key -> t -> bool
+  val insert : key:key -> priority:int -> t -> t
   val upsert : key:key -> priority:int -> t -> t
   val poll : t -> (key * t) option
   val poll_key_priority : t -> (key * int * t) option
