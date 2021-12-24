@@ -1,6 +1,12 @@
 open StdLabels
 open MoreLabels
-module State_heap = Min_heap.Make (State)
+
+module State_heap = Min_heap.Make (struct
+  type t = State.t list * State.t
+
+  let compare (_, s1) (_, s2) = State.compare s1 s2
+end)
+
 module State_set = Set.Make (State)
 
 let parse row =
@@ -23,23 +29,31 @@ let simulate state =
   let rec simulate' queue visited =
     match State_heap.poll_key_priority queue with
     | None -> None
-    | Some (state, base_cost, queue) ->
-        if State.is_finished state then Some base_cost
+    | Some ((path, state), base_cost, queue) ->
+        if State.is_finished state then Some (state :: path, base_cost)
         else if State_set.mem state visited then simulate' queue visited
         else
           let queue =
             State.next state
             |> Seq.fold_left
-                 (fun queue (state, cost) ->
+                 (fun queue (next_state, cost) ->
                    let cost = base_cost + cost in
-                   State_heap.insert ~key:state ~priority:cost queue)
+                   State_heap.insert
+                     ~key:(state :: path, next_state)
+                     ~priority:cost queue)
                  queue
           in
           simulate' queue (State_set.add state visited)
   in
   let queue = State_heap.create ~capacity:10 () in
-  let queue = State_heap.insert ~key:state ~priority:0 queue in
+  let queue = State_heap.insert ~key:([], state) ~priority:0 queue in
   simulate' queue State_set.empty
+
+let print_path path =
+  path
+  |> List.rev
+  |> List.map ~f:State.to_string
+  |> List.iter ~f:(Printf.printf "%s\n\n")
 
 let () =
   Aoc.stdin
@@ -47,4 +61,6 @@ let () =
   |> get_rooms
   |> State.make
   |> simulate
-  |> Option.iter (Printf.printf "%d\n")
+  |> Option.iter (fun (path, cost) ->
+         print_path path;
+         Printf.printf "%d\n" cost)
