@@ -19,6 +19,62 @@ let step_cost a = room_number a |> pow_10
 
 type state = { rooms : amphipod list array; hallway : amphipod option array }
 
+let is_finished { rooms; _ } =
+  let rec is_finished' idx =
+    if idx = Array.length rooms then true
+    else
+      let room = rooms.(idx) in
+      if List.for_all ~f:(fun amphipod -> room_number amphipod = idx) room then
+        is_finished' (idx + 1)
+      else false
+  in
+  is_finished' 0
+
+module State = struct
+  type t = state
+
+  let compare_amphipod a1 a2 = Int.compare (room_number a1) (room_number a2)
+
+  let compare_hallway_pos a1 a2 =
+    match (a1, a2) with
+    | None, None -> 0
+    | _, None -> 1
+    | None, _ -> -1
+    | Some a1, Some a2 -> compare_amphipod a1 a2
+
+  let compare { rooms = rooms1; hallway = hallway1 }
+      { rooms = rooms2; hallway = hallway2 } =
+    let rec compare_rooms idx =
+      if idx = Array.length rooms1 then 0
+      else
+        match (rooms1.(idx), rooms2.(idx)) with
+        | [], [] -> compare_rooms (idx + 1)
+        | l1, l2 when List.length l1 < List.length l2 -> -1
+        | l1, l2 when List.length l1 > List.length l2 -> 1
+        | l1, l2 ->
+            let rec compare_amphipods l1 l2 =
+              match (l1, l2) with
+              | [], [] -> compare_rooms (idx + 1)
+              | [], _ -> -1
+              | _, [] -> 1
+              | hd1 :: tl1, hd2 :: tl2 ->
+                  let cmp = compare_amphipod hd1 hd2 in
+                  if cmp <> 0 then cmp else compare_amphipods tl1 tl2
+            in
+            compare_amphipods l1 l2
+    in
+    let rec compare_hallway idx =
+      if idx = Array.length hallway1 then compare_rooms 0
+      else
+        let r = compare_hallway_pos hallway1.(idx) hallway2.(idx) in
+        if r <> 0 then r else compare_hallway (idx + 1)
+    in
+    compare_hallway 0
+end
+
+module State_heap = Min_heap.Make (State)
+module State_set = Set.Make (State)
+
 let door_hallway_positions = [| 2; 4; 6; 8 |]
 let parking_hallway_positions = [ 0; 1; 3; 5; 7; 9; 10 ]
 let make_state rooms = { rooms; hallway = Array.make 11 None }
@@ -77,7 +133,7 @@ let can_take_amphipod { rooms; _ } number =
   | _ -> false
 
 (* calculates the possible states from the current state, by moving one
-   amphipod *)
+   amphipod into the hallway or into a room *)
 let possible_states ({ hallway; rooms } as state) =
   let occupied_hallway_positions =
     parking_hallway_positions
@@ -105,16 +161,67 @@ let possible_states ({ hallway; rooms } as state) =
               let room = new_state.rooms.(room_number) in
               new_state.rooms.(room_number) <- amphipod :: room;
               new_state.hallway.(idx) <- None;
-              Cons ((cost, new_state), gen_moves_out_of_hallway tl))
+              Cons ((new_state, cost), gen_moves_out_of_hallway tl))
   in
   let rec gen_moves_out_of_rooms room_idx () =
-    if room_idx = Array.length rooms then Nil else failwith "TODO"
+    if room_idx = Array.length rooms then Nil
+    else
+      match rooms.(room_idx) with
+      | [] -> Nil
+      | l when List.for_all ~f:(fun a -> room_number a = room_idx) l -> Nil
+      | amphipod :: tl ->
+          let door = door_hallway_positions.(room_idx) in
+          let rec generate_moves free_hallway_positions () =
+            match free_hallway_positions with
+            | [] -> Nil
+            | hallway_pos :: free_hallway_positions -> (
+                let step_cost = step_cost amphipod in
+                let extra_steps = 2 - List.length rooms.(room_idx) + 1 in
+                match path_cost state step_cost door hallway_pos with
+                | None -> generate_moves free_hallway_positions ()
+                | Some cost ->
+                    let cost = cost + (extra_steps * step_cost) in
+                    let new_state = copy_state state in
+                    new_state.rooms.(room_idx) <- tl;
+                    new_state.hallway.(hallway_pos) <- Some amphipod;
+                    Cons
+                      ((new_state, cost), generate_moves free_hallway_positions)
+                )
+          in
+          let free_hallway_positions =
+            parking_hallway_positions
+            |> List.filter ~f:(fun idx -> Option.is_none hallway.(idx))
+          in
+          Cons
+            ( generate_moves free_hallway_positions,
+              gen_moves_out_of_rooms (room_idx + 1) )
   in
   Seq.append
     (gen_moves_out_of_hallway occupied_hallway_positions)
-    (gen_moves_out_of_rooms 0)
+    (Seq.concat @@ gen_moves_out_of_rooms 0)
 
-let simulate state = state
+let simulate state =
+  let rec simulate' queue visited =
+    match State_heap.poll_key_priority queue with
+    | None -> None
+    | Some (state, cost, queue) ->
+        if is_finished state then Some cost
+        else if State_set.mem state visited then simulate' queue visited
+        else
+          let queue =
+            possible_states state
+            |> Seq.map (fun (state, partial_cost) ->
+                   (state, cost + partial_cost))
+            |> Seq.fold_left
+                 (fun queue (state, cost) ->
+                   State_heap.upsert ~key:state ~priority:cost queue)
+                 queue
+          in
+          simulate' queue (State_set.add state visited)
+  in
+  let queue = State_heap.create ~capacity:10 () in
+  let queue = State_heap.upsert ~key:state ~priority:0 queue in
+  simulate' queue State_set.empty
 
 let () =
   Aoc.stdin
@@ -122,4 +229,4 @@ let () =
   |> get_rooms
   |> make_state
   |> simulate
-  |> ignore
+  |> Option.iter (Printf.printf "%d\n")

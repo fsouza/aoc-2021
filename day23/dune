@@ -1,4 +1,4 @@
 (executable
  (name day23)
- (libraries aoc)
+ (libraries aoc min_heap)
  (modules Day23))
