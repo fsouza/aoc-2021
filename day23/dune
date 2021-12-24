@@ -1,4 +1,4 @@
 (executable
  (name day23)
  (libraries aoc min_heap)
- (modules Day23))
+ (modules Day23 Amphipod State))
