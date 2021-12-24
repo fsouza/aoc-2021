@@ -23,3 +23,7 @@ let rec zip seq1 seq2 () =
 let nat =
   let rec nat' n () = Cons (n, nat' (n + 1)) in
   nat' 0
+
+let tap ~f v =
+  f v;
+  v
