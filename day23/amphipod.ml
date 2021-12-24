@@ -1,5 +1,10 @@
 type t = Amber | Bronze | Copper | Desert
 
+let folded =
+  [|
+    [ Desert; Desert ]; [ Copper; Bronze ]; [ Bronze; Amber ]; [ Amber; Copper ];
+  |]
+
 let room_number = function
   | Amber -> 0
   | Bronze -> 1

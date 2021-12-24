@@ -1,12 +1,6 @@
 open StdLabels
 open MoreLabels
-
-module State_heap = Min_heap.Make (struct
-  type t = State.t list * State.t
-
-  let compare (_, s1) (_, s2) = State.compare s1 s2
-end)
-
+module State_heap = Min_heap.Make (State)
 module State_set = Set.Make (State)
 
 let parse row =
@@ -29,8 +23,8 @@ let simulate state =
   let rec simulate' queue visited =
     match State_heap.poll_key_priority queue with
     | None -> None
-    | Some ((path, state), base_cost, queue) ->
-        if State.is_finished state then Some (state :: path, base_cost)
+    | Some (state, base_cost, queue) ->
+        if State.is_finished state then Some base_cost
         else if State_set.mem state visited then simulate' queue visited
         else
           let queue =
@@ -38,29 +32,35 @@ let simulate state =
             |> Seq.fold_left
                  (fun queue (next_state, cost) ->
                    let cost = base_cost + cost in
-                   State_heap.insert
-                     ~key:(state :: path, next_state)
-                     ~priority:cost queue)
+                   State_heap.insert ~key:next_state ~priority:cost queue)
                  queue
           in
           simulate' queue (State_set.add state visited)
   in
   let queue = State_heap.create ~capacity:10 () in
-  let queue = State_heap.insert ~key:([], state) ~priority:0 queue in
+  let queue = State_heap.insert ~key:state ~priority:0 queue in
   simulate' queue State_set.empty
 
-let print_path path =
-  path
-  |> List.rev
-  |> List.map ~f:State.to_string
-  |> List.iter ~f:(Printf.printf "%s\n\n")
+let unfold rooms =
+  let folded_amphipods = Amphipod.folded in
+  rooms
+  |> Array.mapi ~f:(fun i room ->
+         let to_splice = folded_amphipods.(i) in
+         match room with
+         | [ first; second ] -> [ first ] @ to_splice @ [ second ]
+         | _ -> assert false)
 
-let () =
-  Aoc.stdin
-  |> Seq.filter_map parse
-  |> get_rooms
+let part1 rooms =
+  rooms |> State.make |> simulate |> Option.iter (Printf.printf "Part 1: %d\n")
+
+let part2 rooms =
+  rooms
+  |> unfold
   |> State.make
   |> simulate
-  |> Option.iter (fun (path, cost) ->
-         print_path path;
-         Printf.printf "%d\n" cost)
+  |> Option.iter (Printf.printf "Part 2: %d\n")
+
+let () =
+  let rooms = Aoc.stdin |> Seq.filter_map parse |> get_rooms in
+  part1 rooms;
+  part2 rooms
