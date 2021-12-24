@@ -129,7 +129,7 @@ let get_rooms s =
   result |> Array.map ~f:List.rev
 
 (* origin is not included in the output *)
-let all_idx_between origin target =
+let gen_steps origin target =
   let step, cmp = if origin > target then (-1, ( < )) else (1, ( > )) in
   let rec move acc idx =
     if cmp idx target then acc else move (idx :: acc) (idx + step)
@@ -148,7 +148,7 @@ let path_cost { hallway; _ } step_cost origin target =
     |> IntSet.of_list
     |> IntSet.union door_positions
   in
-  let steps = all_idx_between origin target in
+  let steps = gen_steps origin target in
   if List.for_all ~f:(fun idx -> IntSet.mem idx free_hallway_positions) steps
   then Some (List.length steps * step_cost)
   else None
@@ -172,10 +172,8 @@ let possible_states ({ hallway; rooms } as state) =
   let rec gen_moves_out_of_hallway positions () =
     match positions with
     | [] -> Nil
-    | (idx, amphipod) :: tl -> (
-        if not @@ can_move_to_room state amphipod then
-          gen_moves_out_of_hallway tl ()
-        else
+    | (idx, amphipod) :: tl ->
+        if can_move_to_room state amphipod then (
           let room_number = room_number amphipod in
           let room_length = List.length rooms.(room_number) in
           let door = door_hallway_positions.(room_number) in
@@ -190,6 +188,7 @@ let possible_states ({ hallway; rooms } as state) =
               new_state.rooms.(room_number) <- amphipod :: room;
               new_state.hallway.(idx) <- None;
               Cons ((new_state, cost), gen_moves_out_of_hallway tl))
+        else gen_moves_out_of_hallway tl ()
   in
   let rec gen_moves_out_of_rooms room_idx () =
     if room_idx = Array.length rooms then Nil
@@ -204,11 +203,7 @@ let possible_states ({ hallway; rooms } as state) =
             | [] -> Nil
             | hallway_pos :: free_hallway_positions -> (
                 let step_cost = step_cost amphipod in
-                (* The reason we +2 here is:
-
-                   1. we need +1 to account for getting out of the room
-                   2. "path_cost" won't count the origin as an step, so we need to account for it. *)
-                let extra_steps = 2 - List.length rooms.(room_idx) + 2 in
+                let extra_steps = 2 - List.length rooms.(room_idx) + 1 in
                 match path_cost state step_cost door hallway_pos with
                 | None -> generate_moves free_hallway_positions ()
                 | Some cost ->
