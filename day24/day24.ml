@@ -97,11 +97,33 @@ let execute ({ input; vars; input_idx } as state) = function
 let int_of_array =
   Array.fold_left ~init:0 ~f:(fun acc digit -> (acc * 10) + digit)
 
+let cache_key { vars; _ } ip =
+  let get_var v = Vars.find v vars in
+  Printf.sprintf "x=%d,y=%d,w=%d,z=%d,ip=%d" (get_var X) (get_var Y) (get_var W)
+    (get_var Z) ip
+
 let find_highest_monad program =
   let start = Array.make 14 9 in
+  let cache = Hashtbl.create 10 in
+  let rec cached_execution state = function
+    | [] -> state
+    | (ip, _) :: _ as instructions -> (
+        let key = cache_key state ip in
+        match Hashtbl.find_opt cache key with
+        | Some result -> result
+        | None ->
+            let result = execute_instructions state instructions in
+            Hashtbl.add ~key ~data:result cache;
+            result)
+  and execute_instructions state = function
+    | [] -> state
+    | (_, inst) :: tl ->
+        let state = execute state inst in
+        cached_execution state tl
+  in
   let rec find_highest_monad input =
     let state = make_state input in
-    let { vars; _ } = program |> List.fold_left ~init:state ~f:execute in
+    let { vars; _ } = cached_execution state program in
     let z = Vars.find Z vars in
     if z = 0 then int_of_array input
     else (
@@ -113,6 +135,7 @@ let find_highest_monad program =
 let () =
   Aoc.stdin
   |> Seq.filter_map parse
+  |> Aoc.zip Aoc.nat
   |> List.of_seq
   |> find_highest_monad
   |> Printf.printf "%d\n"
