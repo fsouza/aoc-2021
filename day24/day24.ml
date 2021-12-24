@@ -98,7 +98,7 @@ let int_of_array =
   Array.fold_left ~init:0 ~f:(fun acc digit -> (acc * 10) + digit)
 
 let find_highest_monad program digit =
-  let start = Array.make 14 digit in
+  let start = Array.init ~f:(fun idx -> if idx = 0 then digit else 9) 14 in
   let rec execute_instructions state = function
     | [] -> state
     | inst :: tl ->
