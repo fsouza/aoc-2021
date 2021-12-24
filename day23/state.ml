@@ -9,28 +9,42 @@ let make rooms = { rooms; hallway = Array.make 11 None }
 let copy { rooms; hallway } =
   { rooms = Array.copy rooms; hallway = Array.copy hallway }
 
+let door_hallway_positions = [| 2; 4; 6; 8 |]
+let parking_hallway_positions = [ 0; 1; 3; 5; 7; 9; 10 ]
+
 let to_string { rooms; hallway } =
-  let rooms_str =
-    rooms
-    |> Array.to_seqi
-    |> Seq.map (fun (i, room) ->
-           let room =
-             room |> List.map ~f:Amphipod.to_string |> String.concat ~sep:","
-           in
-           Printf.sprintf "Room: %d: %s" i room)
-    |> List.of_seq
-    |> String.concat ~sep:"\n"
-  in
+  let first_row = "#############" in
   let hallway_str =
     hallway
     |> Array.to_list
     |> List.map ~f:(function
-         | None -> "."
-         | Some a -> Amphipod.to_string a)
-    |> String.concat ~sep:""
-    |> Printf.sprintf "Hallway: %s"
+         | None -> '.'
+         | Some a -> Amphipod.to_char a)
+    |> List.to_seq
+    |> String.of_seq
+    |> Printf.sprintf "#%s#"
   in
-  Printf.sprintf "%s\n%s" rooms_str hallway_str
+  let third_row = "###.#.#.#.###" |> String.to_seq |> Array.of_seq in
+  let fourth_row = "  #.#.#.#.#  " |> String.to_seq |> Array.of_seq in
+  let last_row = "  #########  " in
+  rooms
+  |> Array.to_seqi
+  |> Seq.iter (fun (idx, room) ->
+         let pos = door_hallway_positions.(idx) + 1 in
+         match room with
+         | [ a ] -> fourth_row.(pos) <- Amphipod.to_char a
+         | [ a1; a2 ] ->
+             third_row.(pos) <- Amphipod.to_char a1;
+             fourth_row.(pos) <- Amphipod.to_char a2
+         | _ -> ());
+  [
+    first_row;
+    hallway_str;
+    third_row |> Array.to_seq |> String.of_seq;
+    fourth_row |> Array.to_seq |> String.of_seq;
+    last_row;
+  ]
+  |> String.concat ~sep:"\n"
 
 let compare_hallway_pos a1 a2 =
   match (a1, a2) with
@@ -89,9 +103,6 @@ let gen_steps origin target =
     if cmp idx target then acc else move (idx :: acc) (idx + step)
   in
   move [] (origin + step)
-
-let door_hallway_positions = [| 2; 4; 6; 8 |]
-let parking_hallway_positions = [ 0; 1; 3; 5; 7; 9; 10 ]
 
 (* calculates the cost of going from origin to target given the current state.
    Returns `None` if the path is currently blocked. *)

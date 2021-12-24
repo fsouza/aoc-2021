@@ -1,10 +1,5 @@
-(* Idea for me to explore later: run a shortest path (using Dijkstra, can't
-   think of a good heuristic function for A* ) on the dynamic graph of
-   possible states. *)
-
 open StdLabels
 open MoreLabels
-module IntSet = Set.Make (Int)
 module State_heap = Min_heap.Make (State)
 module State_set = Set.Make (State)
 
@@ -36,8 +31,8 @@ let simulate state =
             State.next state
             |> Seq.fold_left
                  (fun queue (state, cost) ->
-                   State_heap.insert ~key:state ~priority:(base_cost + cost)
-                     queue)
+                   let cost = base_cost + cost in
+                   State_heap.insert ~key:state ~priority:cost queue)
                  queue
           in
           simulate' queue (State_set.add state visited)

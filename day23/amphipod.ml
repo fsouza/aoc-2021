@@ -9,11 +9,11 @@ let room_number = function
 let pow_10 e = Float.pow 10. (Float.of_int e) |> Int.of_float
 let step_cost a = room_number a |> pow_10
 
-let to_string = function
-  | Amber -> "A"
-  | Bronze -> "B"
-  | Copper -> "C"
-  | Desert -> "D"
+let to_char = function
+  | Amber -> 'A'
+  | Bronze -> 'B'
+  | Copper -> 'C'
+  | Desert -> 'D'
 
 let parse = function
   | 'A' -> Some Amber
