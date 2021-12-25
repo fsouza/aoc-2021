@@ -93,18 +93,24 @@ let execute ({ vars; ip } as state) input = function
       let state = op state var value in
       { state with ip = ip + 1 }
 
-let find state program =
+type range = { start : int; end_ : int; delta : int; stop : int }
+
+let range start end_ =
+  let delta = if start > end_ then -1 else 1 in
+  { start; end_; delta; stop = end_ + delta }
+
+let find ~range state program =
   let cache = Hashtbl.create 100 in
   let rec cached_find state =
     let cache_key = cache_key state in
     match Hashtbl.find_opt cache cache_key with
     | Some result -> result
     | None ->
-        let result = find state 9 in
+        let result = find state range.start in
         Hashtbl.add ~key:cache_key ~data:result cache;
         result
   and find ({ ip; _ } as state) input =
-    if input = 0 then None
+    if input = range.stop then None
     else
       let inst = program.(ip) in
       let old_state = state in
@@ -114,13 +120,13 @@ let find state program =
   and execute_until_inp old_state ({ ip; vars } as state) input =
     if ip = Array.length program then
       let z = Vars.find Z vars in
-      if z = 0 then Some [ input ] else find old_state (input - 1)
+      if z = 0 then Some [ input ] else find old_state (input + range.delta)
     else
       let inst = program.(ip) in
       if is_inp inst then
         match cached_find state with
         | Some result -> Some (input :: result)
-        | None -> find old_state (input - 1)
+        | None -> find old_state (input + range.delta)
       else
         let state = execute state input inst in
         execute_until_inp old_state state input
@@ -129,5 +135,13 @@ let find state program =
 
 let () =
   let program = Aoc.stdin |> Seq.filter_map parse |> Array.of_seq in
-  find initial_state program |> Option.iter (List.iter ~f:print_int);
-  print_newline ()
+  find ~range:(range 9 1) initial_state program
+  |> Option.iter (fun r ->
+         Printf.printf "Part 1: ";
+         List.iter ~f:print_int r;
+         print_newline ());
+  find ~range:(range 1 9) initial_state program
+  |> Option.iter (fun r ->
+         Printf.printf "Part 2: ";
+         List.iter ~f:print_int r;
+         print_newline ())
