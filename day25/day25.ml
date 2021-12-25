@@ -44,40 +44,30 @@ let add_to_state ({ width; height; _ } as state) (row_idx, row) =
              })
        { state with width; height }
 
-let neighbor_positions { width; height; _ } (row, col) =
-  ((row, (col + 1) mod width), ((row + 1) mod height, col))
-
-let try_move ~pos ~cucumber ({ east_grid; south_grid; _ } as state) =
-  let east_neighbor, south_neighbor = neighbor_positions state pos in
+let try_move ~pos:((row, col) as pos) ~cucumber grid
+    { east_grid; south_grid; width; height } =
   let neighbor =
     match cucumber with
-    | East -> east_neighbor
-    | South -> south_neighbor
+    | East -> (row, (col + 1) mod width)
+    | South -> ((row + 1) mod height, col)
   in
   if PosSet.mem neighbor east_grid || PosSet.mem neighbor south_grid then
-    (state, false)
-  else
-    match cucumber with
-    | East ->
-        let east_grid = east_grid |> PosSet.remove pos |> PosSet.add neighbor in
-        ({ state with east_grid }, true)
-    | South ->
-        let south_grid =
-          south_grid |> PosSet.remove pos |> PosSet.add neighbor
-        in
-        ({ state with south_grid }, true)
+    (PosSet.add pos grid, false)
+  else (PosSet.add neighbor grid, true)
 
-let step ({ east_grid; _ } as state) =
-  let ({ south_grid; _ } as state), moved =
-    east_grid
-    |> PosSet.fold ~init:(state, false) ~f:(fun pos (state, moved_acc) ->
-           let state, moved = try_move ~pos ~cucumber:East state in
-           (state, moved || moved_acc))
+let proc_grid state grid cucumber =
+  grid
+  |> PosSet.fold ~init:(PosSet.empty, false)
+       ~f:(fun pos (new_grid, moved_acc) ->
+         let grid, moved = try_move ~pos ~cucumber new_grid state in
+         (grid, moved || moved_acc))
+
+let step ({ east_grid; south_grid; _ } as state) =
+  let east_grid, east_moved = proc_grid state east_grid East in
+  let south_grid, south_moved =
+    proc_grid { state with east_grid } south_grid South
   in
-  south_grid
-  |> PosSet.fold ~init:(state, moved) ~f:(fun pos (state, moved_acc) ->
-         let state, moved = try_move ~pos ~cucumber:South state in
-         (state, moved || moved_acc))
+  ({ state with east_grid; south_grid }, east_moved || south_moved)
 
 let print_grid { width; height; east_grid; south_grid } =
   for row = 0 to height - 1 do
@@ -97,9 +87,6 @@ let print_grid { width; height; east_grid; south_grid } =
 
 let count_steps_until_freeze state =
   let rec count_steps_until_freeze steps (state, moved) =
-    Printf.printf "After %d steps:\n" steps;
-    print_grid state;
-    flush stdout;
     if not moved then steps
     else
       let state, moved = step state in
