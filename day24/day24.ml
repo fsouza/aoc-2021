@@ -126,7 +126,8 @@ let find_highest_monad program digit =
 let () =
   let digits = [ 9; 8; 7; 6; 5; 4; 3; 2 ] in
   let program = Aoc.stdin |> Seq.filter_map parse |> List.of_seq in
-  Parmap.parmapfold
+  let ncores = Parmap.get_default_ncores () / 2 in
+  Parmap.parmapfold ~ncores
     (find_highest_monad program)
     (Parmap.L digits) max min_int max
   |> Printf.printf "%d\n"
