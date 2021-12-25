@@ -1,3 +1,7 @@
+(* Note: I originally had a very slow brute force solution, this final
+   solutions is inspired by Jocely Stericker's solution available at
+   https://www.youtube.com/watch?v=KEUTNCRvXN4 *)
+
 open StdLabels
 open MoreLabels
 
@@ -9,17 +13,24 @@ let int_of_var = function
   | Y -> 2
   | Z -> 3
 
+module StringMap = Map.Make (String)
+
 module Vars = Map.Make (struct
   type t = var
 
   let compare v1 v2 = Int.compare (int_of_var v1) (int_of_var v2)
 end)
 
-type state = { vars : int Vars.t; input : int array; input_idx : int }
+type state = { vars : int Vars.t; ip : int }
 
-let make_state input =
+let cache_key { vars; ip } =
+  let get_var var = Vars.find var vars in
+  Printf.sprintf "w=%d;x=%d;y=%d;z=%d;ip=%d" (get_var W) (get_var X) (get_var Y)
+    (get_var Z) ip
+
+let initial_state =
   let seq = [ W; X; Y; Z ] |> List.to_seq |> Seq.map (fun var -> (var, 0)) in
-  { input; vars = Vars.add_seq seq Vars.empty; input_idx = 0 }
+  { vars = Vars.add_seq seq Vars.empty; ip = 0 }
 
 type value = Var of var | Lit of int
 type bin_op = state -> var -> value -> state
@@ -38,6 +49,10 @@ let make_bin_op int_op ({ vars; _ } as state) var value =
   { state with vars = Vars.add ~key:var ~data:(int_op lhs rhs) vars }
 
 type instruction = Inp of var | Bin_op of bin_op * var * value
+
+let is_inp = function
+  | Inp _ -> true
+  | Bin_op _ -> false
 
 let parse_var = function
   | "w" -> Some W
@@ -72,62 +87,47 @@ let parse line =
   | [ op; var; value ] -> make_op op var value
   | _ -> None
 
-let decr arr =
-  let rec decr' idx =
-    if idx = -1 then failwith "tried to decrement too far"
+let execute ({ vars; ip } as state) input = function
+  | Inp var -> { vars = Vars.add ~key:var ~data:input vars; ip = ip + 1 }
+  | Bin_op (op, var, value) ->
+      let state = op state var value in
+      { state with ip = ip + 1 }
+
+let find state program =
+  let cache = Hashtbl.create 100 in
+  let rec cached_find state =
+    let cache_key = cache_key state in
+    match Hashtbl.find_opt cache cache_key with
+    | Some result -> result
+    | None ->
+        let result = find state 9 in
+        Hashtbl.add ~key:cache_key ~data:result cache;
+        result
+  and find ({ ip; _ } as state) input =
+    if input = 0 then None
     else
-      let v = arr.(idx) in
-      if v = 1 then (
-        arr.(idx) <- 9;
-        decr' (idx - 1))
-      else arr.(idx) <- v - 1
+      let inst = program.(ip) in
+      let old_state = state in
+      let state = execute state input inst in
+      execute_until_inp old_state state input
+  (* this old_state trick is just bad lol should I give up on recursion and embrace loops? :) *)
+  and execute_until_inp old_state ({ ip; vars } as state) input =
+    if ip = Array.length program then
+      let z = Vars.find Z vars in
+      if z = 0 then Some [ input ] else find old_state (input - 1)
+    else
+      let inst = program.(ip) in
+      if is_inp inst then
+        match cached_find state with
+        | Some result -> Some (input :: result)
+        | None -> find old_state (input - 1)
+      else
+        let state = execute state input inst in
+        execute_until_inp old_state state input
   in
-  decr' (Array.length arr - 1)
-
-let execute ({ input; vars; input_idx } as state) = function
-  | Inp var ->
-      let data = input.(input_idx) in
-      {
-        state with
-        vars = Vars.add ~key:var ~data vars;
-        input_idx = input_idx + 1;
-      }
-  | Bin_op (op, var, value) -> op state var value
-
-let int_of_array =
-  Array.fold_left ~init:0 ~f:(fun acc digit -> (acc * 10) + digit)
-
-let find_highest_monad program digit =
-  let start = Array.init ~f:(fun idx -> if idx = 0 then digit else 9) 14 in
-  let rec execute_instructions state = function
-    | [] -> state
-    | inst :: tl ->
-        let state = execute state inst in
-        execute_instructions state tl
-  in
-  let rec find_highest_monad step input =
-    if step mod 1000000 = 0 then (
-      Printf.printf "%d\n" @@ int_of_array input;
-      flush stdout);
-    let state = make_state input in
-    let { vars; _ } = execute_instructions state program in
-    let z = Vars.find Z vars in
-    if z = 0 then (
-      let v = int_of_array input in
-      Printf.printf "found answer %d\n" v;
-      v)
-    else (
-      decr input;
-      if input.(0) <> digit then min_int
-      else find_highest_monad (step + 1) input)
-  in
-  find_highest_monad 0 start
+  cached_find state
 
 let () =
-  let digits = [ 9; 8; 7; 6; 5; 4; 3; 2 ] in
-  let program = Aoc.stdin |> Seq.filter_map parse |> List.of_seq in
-  let ncores = Parmap.get_default_ncores () / 2 in
-  Parmap.parmapfold ~ncores
-    (find_highest_monad program)
-    (Parmap.L digits) max min_int max
-  |> Printf.printf "%d\n"
+  let program = Aoc.stdin |> Seq.filter_map parse |> Array.of_seq in
+  find initial_state program |> Option.iter (List.iter ~f:print_int);
+  print_newline ()

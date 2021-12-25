@@ -1,4 +1,4 @@
 (executable
  (name day24)
- (libraries aoc parmap)
+ (libraries aoc)
  (modules Day24))
