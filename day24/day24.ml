@@ -93,11 +93,11 @@ let execute ({ vars; ip } as state) input = function
       let state = op state var value in
       { state with ip = ip + 1 }
 
-type range = { start : int; end_ : int; delta : int; stop : int }
+type range = { start : int; delta : int; stop : int }
 
 let range start end_ =
   let delta = if start > end_ then -1 else 1 in
-  { start; end_; delta; stop = end_ + delta }
+  { start; delta; stop = end_ + delta }
 
 let find ~range state program =
   let cache = Hashtbl.create 100 in
